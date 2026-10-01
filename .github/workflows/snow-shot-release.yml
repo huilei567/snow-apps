@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*_snow-shot"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v1.1.9_snow-shot"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -117,14 +123,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Updater tests failed." }
           & scripts/test-snow-shot-update-helper.ps1
 
-      - name: Verify tag and locate package
+      - name: Resolve release tag and locate package
         id: package
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          $tag = $env:RELEASE_TAG.Trim()
           $version = [regex]::Match((Get-Content -Raw CMakeLists.txt), 'set\(SNOW_SHOT_VERSION "([^"]+)"\)').Groups[1].Value
-          if ($env:GITHUB_REF_NAME -cne "v${version}_snow-shot") {
-            throw "Unexpected release tag: $env:GITHUB_REF_NAME"
+          if ($tag -cne "v${version}_snow-shot") {
+            throw "Unexpected release tag '$tag'; expected 'v${version}_snow-shot'."
           }
+          "tag=$tag" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           $names = @()
           foreach ($prefix in @('snow-shot', 'snow-shot-mini')) {
             $variants = if ($prefix -eq 'snow-shot-mini') { @('online') } else { @('online', 'offline') }
@@ -148,7 +158,7 @@ jobs:
       - name: Preserve matching release symbols separately
         uses: actions/upload-artifact@v4
         with:
-          name: snow-shot-symbols-${{ github.ref_name }}
+          name: snow-shot-symbols-${{ steps.package.outputs.tag }}
           path: |
             build/snow-shot-msvc-release/snow-shot-symbols-windows-x64.zip
             build/snow-shot-msvc-release/snow-shot-symbols-windows-x64.zip.sha256
@@ -157,19 +167,18 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # Local publisher signs latest-version.json, verifies all assets, and publishes the draft.
-      # CI never receives the private release signing key.
-      - name: Create draft release for local signing and finalization
+      # Route C: CI publishes installers directly, without the signed update feed.
+      - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
         run: |
           $assets = "${{ steps.package.outputs.assets }}" -split "`n" | Where-Object { $_ }
           $version = [regex]::Match((Get-Content -Raw CMakeLists.txt), 'set\(SNOW_SHOT_VERSION "([^"]+)"\)').Groups[1].Value
           $releaseFlags = @()
           if (($version -split '\+')[0].Contains('-')) { $releaseFlags += '--prerelease' }
-          gh release create $env:GITHUB_REF_NAME @assets `
-            --draft `
+          gh release create $env:RELEASE_TAG @assets `
             @releaseFlags `
             --generate-notes `
-            --title "Snow Shot and Snow Shot Mini $env:GITHUB_REF_NAME"
+            --title "Snow Shot and Snow Shot Mini $env:RELEASE_TAG"
