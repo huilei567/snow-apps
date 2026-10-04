@@ -51,6 +51,13 @@
         </message>
     </context>
     <context>
+        <name>RecordingRegionDragHandle</name>
+        <message>
+            <source>Move recording area</source>
+            <translation>移动屏幕录制区域</translation>
+        </message>
+    </context>
+    <context>
         <name>RecordingRenderDialog</name>
         <message>
             <source>Cancel</source>
@@ -116,6 +123,40 @@
         </message>
     </context>
     <context>
+        <name>RecordingTrimSession</name>
+        <message>
+            <source>Choose a different file to preserve the original recording.</source>
+            <translation>请选择其他文件，以保留原始录制。</translation>
+        </message>
+        <message>
+            <source>Save to File</source>
+            <translation>保存到文件</translation>
+        </message>
+        <message>
+            <source>Unable to export recording: %1</source>
+            <translation>无法导出录制：%1</translation>
+        </message>
+        <message>
+            <source>Unable to preview recording: %1</source>
+            <translation>无法预览录制：%1</translation>
+        </message>
+    </context>
+    <context>
+        <name>RecordingTrimToolbar</name>
+        <message>
+            <source>Replay</source>
+            <translation>重播</translation>
+        </message>
+        <message>
+            <source>Trim end</source>
+            <translation>裁剪终点</translation>
+        </message>
+        <message>
+            <source>Trim start</source>
+            <translation>裁剪起点</translation>
+        </message>
+    </context>
+    <context>
         <name>ScreenRecordingController</name>
         <message>
             <source>Keyboard recording failed: %1</source>
@@ -149,7 +190,7 @@ Keep this folder to recover the recording.</source>
         </message>
         <message>
             <source>Unable to exclude audio controls from recording</source>
-            <translation>无法从录屏中排除音频控件</translation>
+            <translation>无法从屏幕录制中排除音频控件</translation>
         </message>
         <message>
             <source>Unknown recording error</source>
@@ -164,7 +205,7 @@ Keep this folder to recover the recording.</source>
         </message>
         <message>
             <source>Recording settings</source>
-            <translation>录屏设置</translation>
+            <translation>屏幕录制设置</translation>
         </message>
     </context>
 </TS>

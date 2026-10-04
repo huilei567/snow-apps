@@ -64,6 +64,14 @@
             <translation>動畫錄製格式不包含音訊</translation>
         </message>
         <message>
+            <source>Annotation Template</source>
+            <translation>標註範本</translation>
+        </message>
+        <message>
+            <source>Arabic numerals</source>
+            <translation>阿拉伯數字</translation>
+        </message>
+        <message>
             <source>Arrow</source>
             <translation>箭頭</translation>
         </message>
@@ -124,6 +132,14 @@
             <translation>移至最上層</translation>
         </message>
         <message>
+            <source>Brush Eraser</source>
+            <translation>畫筆橡皮擦</translation>
+        </message>
+        <message>
+            <source>Brush eraser stroke width %1 (%2px)</source>
+            <translation>畫筆橡皮擦筆畫寬度 %1（%2px）</translation>
+        </message>
+        <message>
             <source>Cancel</source>
             <translation>取消</translation>
         </message>
@@ -132,8 +148,8 @@
             <translation>取消截圖</translation>
         </message>
         <message>
-            <source>Capture cursor</source>
-            <translation>擷取游標</translation>
+            <source>Capture interface during scrolling screenshot</source>
+            <translation>捲動截圖時擷取介面</translation>
         </message>
         <message>
             <source>Center horizontally</source>
@@ -142,6 +158,10 @@
         <message>
             <source>Center vertically</source>
             <translation>垂直置中</translation>
+        </message>
+        <message>
+            <source>Chinese numerals</source>
+            <translation>中文數字</translation>
         </message>
         <message>
             <source>Circle</source>
@@ -188,12 +208,12 @@
             <translation>無法擷取所選元素</translation>
         </message>
         <message>
-            <source>Could not delete the draw template</source>
-            <translation>無法刪除繪圖範本</translation>
+            <source>Could not delete the annotation template</source>
+            <translation>無法刪除標註範本</translation>
         </message>
         <message>
-            <source>Could not save the draw template</source>
-            <translation>無法儲存繪圖範本</translation>
+            <source>Could not save the annotation template</source>
+            <translation>無法儲存標註範本</translation>
         </message>
         <message>
             <source>Cross-line fill</source>
@@ -210,6 +230,10 @@
         <message>
             <source>Current arrow stroke width</source>
             <translation>目前箭頭描邊寬度</translation>
+        </message>
+        <message>
+            <source>Current brush eraser stroke width</source>
+            <translation>目前畫筆橡皮擦筆畫寬度</translation>
         </message>
         <message>
             <source>Current pen filter stroke width</source>
@@ -234,6 +258,10 @@
         <message>
             <source>Current watermark font size</source>
             <translation>目前浮水印字型大小</translation>
+        </message>
+        <message>
+            <source>Cursor data is unavailable for this screenshot.</source>
+            <translation>此螢幕擷取沒有可用的游標資料。</translation>
         </message>
         <message>
             <source>Curve region</source>
@@ -268,12 +296,12 @@
             <translation>刪除</translation>
         </message>
         <message>
-            <source>Delete Draw Template</source>
-            <translation>刪除繪圖範本</translation>
+            <source>Delete Annotation Template</source>
+            <translation>刪除標註範本</translation>
         </message>
         <message>
-            <source>Delete draw template "%1"? This action cannot be undone.</source>
-            <translation>刪除繪圖範本「%1」？此操作無法復原。</translation>
+            <source>Delete annotation template "%1"? This action cannot be undone.</source>
+            <translation>刪除標註範本「%1」？此操作無法復原。</translation>
         </message>
         <message>
             <source>Delete selected elements</source>
@@ -312,10 +340,6 @@
             <translation>拖曳工具列</translation>
         </message>
         <message>
-            <source>Draw Template</source>
-            <translation>繪圖範本</translation>
-        </message>
-        <message>
             <source>Edit</source>
             <translation>編輯</translation>
         </message>
@@ -330,6 +354,10 @@
         <message>
             <source>Elbow arrow</source>
             <translation>折線箭頭</translation>
+        </message>
+        <message>
+            <source>Element Eraser</source>
+            <translation>元素橡皮擦</translation>
         </message>
         <message>
             <source>Ellipse</source>
@@ -452,10 +480,6 @@
             <translation>自由繪製區域</translation>
         </message>
         <message>
-            <source>Full-width</source>
-            <translation>全形</translation>
-        </message>
-        <message>
             <source>Gaussian blur</source>
             <translation>高斯模糊</translation>
         </message>
@@ -466,10 +490,6 @@
         <message>
             <source>Green</source>
             <translation>綠色</translation>
-        </message>
-        <message>
-            <source>Half-width</source>
-            <translation>半形</translation>
         </message>
         <message>
             <source>Hide selection toolbar</source>
@@ -520,10 +540,6 @@
             <translation>跳轉至翻譯頁面</translation>
         </message>
         <message>
-            <source>Keep line breaks</source>
-            <translation>保留換行</translation>
-        </message>
-        <message>
             <source>Keyboard Background Color</source>
             <translation>鍵盤背景顏色</translation>
         </message>
@@ -558,6 +574,10 @@
         <message>
             <source>Logical Pixel Selection</source>
             <translation>邏輯像素選取範圍</translation>
+        </message>
+        <message>
+            <source>Lowercase letters</source>
+            <translation>小寫字母</translation>
         </message>
         <message>
             <source>Mask color</source>
@@ -768,6 +788,10 @@
             <translation>矩形</translation>
         </message>
         <message>
+            <source>Rectangle Eraser</source>
+            <translation>矩形橡皮擦</translation>
+        </message>
+        <message>
             <source>Rectangle filter</source>
             <translation>矩形濾鏡</translation>
         </message>
@@ -788,10 +812,6 @@
             <translation>重做</translation>
         </message>
         <message>
-            <source>Remove line breaks</source>
-            <translation>移除換行</translation>
-        </message>
-        <message>
             <source>Reset</source>
             <translation>重設</translation>
         </message>
@@ -804,12 +824,24 @@
             <translation>繼續錄製</translation>
         </message>
         <message>
+            <source>Roman numerals</source>
+            <translation>羅馬數字</translation>
+        </message>
+        <message>
             <source>Save as file</source>
             <translation>另存為檔案</translation>
         </message>
         <message>
+            <source>Save to File</source>
+            <translation>儲存至檔案</translation>
+        </message>
+        <message>
             <source>Scrolling screenshot</source>
             <translation>捲動截圖</translation>
+        </message>
+        <message>
+            <source>Scrolling screenshot settings</source>
+            <translation>捲動截圖設定</translation>
         </message>
         <message>
             <source>Select elements</source>
@@ -856,6 +888,10 @@
             <translation>序號文字大小 %1 像素</translation>
         </message>
         <message>
+            <source>Sequence number numeric type</source>
+            <translation>序號數字類型</translation>
+        </message>
+        <message>
             <source>Sequence number type</source>
             <translation>序號類型</translation>
         </message>
@@ -870,6 +906,10 @@
         <message>
             <source>Shape</source>
             <translation>圖形</translation>
+        </message>
+        <message>
+            <source>Show Cursor</source>
+            <translation>顯示游標</translation>
         </message>
         <message>
             <source>Show Playback Time</source>
@@ -1040,6 +1080,10 @@
             <translation>漸寬箭桿支援標準、三角形、空心三角形和內凹三角形箭頭。</translation>
         </message>
         <message>
+            <source>Target Language</source>
+            <translation>目標語言</translation>
+        </message>
+        <message>
             <source>Template</source>
             <translation>範本</translation>
         </message>
@@ -1136,8 +1180,20 @@
             <translation>透明</translation>
         </message>
         <message>
+            <source>Trim Video</source>
+            <translation>裁剪影片</translation>
+        </message>
+        <message>
+            <source>Unable to save scrolling screenshot settings</source>
+            <translation>無法儲存捲動截圖設定</translation>
+        </message>
+        <message>
             <source>Undo</source>
             <translation>復原</translation>
+        </message>
+        <message>
+            <source>Uppercase letters</source>
+            <translation>大寫字母</translation>
         </message>
         <message>
             <source>Vertical scrolling</source>

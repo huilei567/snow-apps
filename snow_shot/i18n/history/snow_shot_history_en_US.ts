@@ -435,6 +435,10 @@
             <translation>Always on Top</translation>
         </message>
         <message>
+            <source>Annotation mode</source>
+            <translation>Annotation mode</translation>
+        </message>
+        <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
         </message>
@@ -503,12 +507,8 @@
             <translation>Display text recognition results</translation>
         </message>
         <message>
-            <source>Drawing mode</source>
-            <translation>Drawing mode</translation>
-        </message>
-        <message>
-            <source>Enable drawing mode</source>
-            <translation>Enable drawing mode</translation>
+            <source>Enable annotation mode</source>
+            <translation>Enable annotation mode</translation>
         </message>
         <message>
             <source>Exit click-through mode</source>
@@ -541,10 +541,6 @@
         <message>
             <source>Image file</source>
             <translation>Image file</translation>
-        </message>
-        <message>
-            <source>Image files (%1)</source>
-            <translation>Image files (%1)</translation>
         </message>
         <message>
             <source>Image size is too large.</source>
@@ -617,6 +613,10 @@
         <message>
             <source>Show main interface</source>
             <translation>Show main interface</translation>
+        </message>
+        <message>
+            <source>Supported files (%1)</source>
+            <translation>Supported files (%1)</translation>
         </message>
         <message>
             <source>The image could not be saved automatically: %1</source>

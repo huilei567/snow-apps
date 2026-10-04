@@ -1,3 +1,4 @@
+#include "snow_shot/presentation/canvashistoryshortcuts.h"
 #include "snow_shot/presentation/globalcanvascontroller.h"
 #include "globalcanvasplatform.h"
 #include "snow_shot/platform/screenshotnative.h"
@@ -281,8 +282,23 @@ class GlobalCanvasController::Session final : public QWidget, public SnowCanvasC
             if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::Hide ||
                 event->type() == QEvent::FocusOut)
                 finishPan();
-            if (!transparent && !sampleTarget && handleNavigation(event))
-                return true;
+            if (!transparent && !sampleTarget) {
+                if (handleNavigation(event))
+                    return true;
+                if (event->type() == QEvent::Wheel &&
+                    drawing->canvasTool() == SnowCanvasTool::BrushEraser) {
+                    auto* wheel = static_cast<QWheelEvent*>(event);
+                    if (wheel->modifiers() == Qt::NoModifier) {
+                        const int delta = usesPreciseWheelDelta(*wheel) ? wheel->pixelDelta().y()
+                                                                        : wheel->angleDelta().y();
+                        if (delta != 0 &&
+                            stepScreenshotStyle(*tools->palette(), *drawing, delta > 0 ? 1 : -1)) {
+                            wheel->accept();
+                            return true;
+                        }
+                    }
+                }
+            }
         }
         if (watched == drawing.get() && sampleTarget) {
             if (event->type() == QEvent::MouseMove) {
@@ -470,6 +486,12 @@ class GlobalCanvasController::Session final : public QWidget, public SnowCanvasC
             return true;
         };
         static_cast<void>(shortcuts.addBinding(this, std::move(exit)));
+        new CanvasHistoryShortcuts(
+            shortcuts, this,
+            [this](const auto&) {
+                return !transparent && !sampleTarget && !drawing->hasActiveTextEditing();
+            },
+            [this](const QString& action) { return palette->activateScreenshotShortcut(action); });
         const auto bindings = storage::DrawingShortcutSettings().allShortcuts();
         for (auto it = bindings.cbegin(); it != bindings.cend(); ++it) {
             WindowShortcutManager::Binding binding;
@@ -519,6 +541,12 @@ class GlobalCanvasController::Session final : public QWidget, public SnowCanvasC
             break;
         case SnowCanvasTool::Eraser:
             palette->setActiveTool(ScreenshotToolPalette::Tool::Eraser);
+            break;
+        case SnowCanvasTool::RectangleEraser:
+            palette->setActiveTool(ScreenshotToolPalette::Tool::RectangleEraser);
+            break;
+        case SnowCanvasTool::BrushEraser:
+            palette->setActiveTool(ScreenshotToolPalette::Tool::BrushEraser);
             break;
         case SnowCanvasTool::RectangleFilter:
             palette->setActiveTool(ScreenshotToolPalette::Tool::RectangleFilter);
@@ -582,6 +610,16 @@ class GlobalCanvasController::Session final : public QWidget, public SnowCanvasC
         connect(palette, &ScreenshotToolPalette::spotlightRequested, this, [this]() {
             drawing->setCanvasTool(SnowCanvasTool::Spotlight);
             palette->setActiveTool(ScreenshotToolPalette::Tool::Spotlight);
+            activateDrawing();
+        });
+        connect(palette, &ScreenshotToolPalette::rectangleEraserRequested, this, [this]() {
+            drawing->setCanvasTool(SnowCanvasTool::RectangleEraser);
+            palette->setActiveTool(ScreenshotToolPalette::Tool::RectangleEraser);
+            activateDrawing();
+        });
+        connect(palette, &ScreenshotToolPalette::brushEraserRequested, this, [this]() {
+            drawing->setCanvasTool(SnowCanvasTool::BrushEraser);
+            palette->setActiveTool(ScreenshotToolPalette::Tool::BrushEraser);
             activateDrawing();
         });
         connect(palette, &ScreenshotToolPalette::eraserRequested, this, [this]() {

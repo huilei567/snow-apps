@@ -225,6 +225,11 @@ class ScreenshotToolPaletteStyleControls final {
     [[nodiscard]] QWidget* buildWatermarkFamily(QWidget* panel,
                                                 const ScreenshotToolPaletteStyleFamilyHost& host,
                                                 const ScreenshotToolPaletteButtonMetrics& metrics);
+    [[nodiscard]] QWidget* buildEraserFamily(int tool, QWidget* panel,
+                                             const ScreenshotToolPaletteStyleFamilyHost& host,
+                                             const std::function<void(double)>& setWidth,
+                                             const std::function<void()>& cycleWidth,
+                                             const ScreenshotToolPaletteButtonMetrics& metrics);
     [[nodiscard]] ScreenshotToolPaletteFilterFamilyResult
     buildFilterFamily(const ScreenshotToolPaletteFilterFamilyConfig& config,
                       const ScreenshotToolPaletteFilterCallbacks& callbacks, QWidget* panel,
@@ -264,6 +269,7 @@ class ScreenshotToolPaletteStyleControls final {
     [[nodiscard]] adqt::widgets::AdSlider* spotlightOpacitySlider() const;
     [[nodiscard]] QLabel* spotlightOpacityIcon() const;
     void updatePenFilterStrokeWidthControls(double width, bool mixed);
+    void updateBrushEraserStrokeWidthControls(double width);
     [[nodiscard]] int spacerReferenceWidth(const QSpacerItem* spacer) const;
 
     // Popup content owns its window DPR and is intentionally excluded.
@@ -306,7 +312,8 @@ class ScreenshotToolPaletteStyleControls final {
         SerialNumberFontSizeRefresh = 1u << 3,
         SerialNumberFontFamilyRefresh = 1u << 4,
         SerialNumberTypeRefresh = 1u << 5,
-        AllSerialNumberRefreshes = (1u << 6) - 1,
+        SerialNumberNumericTypeRefresh = 1u << 6,
+        AllSerialNumberRefreshes = (1u << 7) - 1,
     };
     static constexpr quint32 kAllRefreshGroups = 0xffffffffu;
 
@@ -389,6 +396,7 @@ class ScreenshotToolPaletteStyleControls final {
     void setWatermarkOpacity(double opacity);
     void setSerialNumberColor(const QColor& color);
     void setSerialNumberType(SnowCanvasSerialNumberType type);
+    void setSerialNumberNumericType(SnowCanvasSerialNumberNumericType type);
     void setSerialNumberFillColor(const QColor& color);
     void setSerialNumberFillStyle(SnowCanvasFillStyle fillStyle);
     void setSerialNumber(qint64 number);
@@ -477,6 +485,7 @@ class ScreenshotToolPaletteStyleControls final {
     std::unique_ptr<ScreenshotToolPaletteColorEditor> m_penHighlightColorEditor;
     std::unique_ptr<ScreenshotToolPaletteNumericPresetEditor> m_penHighlightStrokeWidthEditor;
     std::unique_ptr<ScreenshotToolPaletteNumericPresetEditor> m_penFilterStrokeWidthEditor;
+    std::unique_ptr<ScreenshotToolPaletteNumericPresetEditor> m_brushEraserStrokeWidthEditor;
     std::unique_ptr<ScreenshotToolPaletteNumericPresetEditor> m_arrowStrokeWidthEditor;
     std::unique_ptr<ScreenshotToolPaletteStrokeEditor> m_arrowStrokeEditor;
     adqt::widgets::AdRadioButtonGroup* m_arrowTypeButtonGroup = nullptr;
@@ -493,6 +502,8 @@ class ScreenshotToolPaletteStyleControls final {
     std::unique_ptr<ScreenshotToolPaletteColorEditor> m_serialNumberColorEditor;
     QWidget* m_serialNumberTypeControlsContainer = nullptr;
     adqt::widgets::AdRadioButtonGroup* m_serialNumberTypeButtonGroup = nullptr;
+    QWidget* m_serialNumberNumericTypeControlsContainer = nullptr;
+    adqt::widgets::AdRadioButtonGroup* m_serialNumberNumericTypeButtonGroup = nullptr;
     std::unique_ptr<ScreenshotToolPaletteFillEditor> m_serialNumberFillEditor;
     adqt::widgets::AdLineEdit* m_serialNumberEditor = nullptr;
     std::unique_ptr<ScreenshotToolPaletteFontEditor> m_serialNumberFontEditor;

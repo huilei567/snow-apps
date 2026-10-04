@@ -66,6 +66,7 @@ struct FieldEvents {
     int commits = 0;
 };
 
+#ifdef Q_OS_WIN
 void observeField(QObject& owner, const char* id, FieldEvents& events) {
     fields::FormField* field = nullptr;
     for (auto* candidate : owner.findChildren<fields::FormField*>()) {
@@ -77,6 +78,7 @@ void observeField(QObject& owner, const char* id, FieldEvents& events) {
     QObject::connect(field, &fields::FormField::valueCommitted, field,
                      [&events] { ++events.commits; });
 }
+#endif
 
 void flushEvents() {
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -111,7 +113,7 @@ class ToolbarEditorTranslator final : public QTranslator {
             if (source == QStringLiteral("Shape")) {
                 return QStringLiteral("Translated drawing shape");
             }
-            if (source == QStringLiteral("Drawing toolbar preview")) {
+            if (source == QStringLiteral("Annotation toolbar preview")) {
                 return QStringLiteral("Translated drawing preview");
             }
         }
@@ -249,7 +251,8 @@ class FakeSettingsBackend final : public settings::SettingsBackend {
             return {!m_status.diagnostics.exporting, m_status.diagnostics.exporting};
         return {true, false};
     }
-    bool triggerAction(settings::SettingsActionBinding, const QString& = {}) override {
+    bool triggerAction(settings::SettingsActionBinding, const QString& = {},
+                       bool = false) override {
         return true;
     }
     storage::StorageStatus storageStatus() const override {
@@ -477,7 +480,13 @@ void pinnedToolbarSectionResetRefreshesEditor() {
                 !table->property("screenshotToolbarMainButton").toBool(),
             "accepted hidden layout must update the editor preview");
     require(backend.resetSection(settings::SettingsSectionReset::PinToScreen),
-            "Pin to Screen section reset must succeed");
+            "pinned window appearance reset must succeed");
+    flushEvents();
+    require(backend.toolbarLayout(kind) == hidden && session.toolbarLayout(kind) == hidden &&
+                !table->property("screenshotToolbarMainButton").toBool(),
+            "appearance reset must preserve the customized pinned toolbar");
+    require(backend.resetSection(settings::SettingsSectionReset::PinToScreenToolbar),
+            "pinned toolbar section reset must succeed");
     flushEvents();
     require(backend.toolbarLayout(kind) == layout::normalizedLayout({}, kind) &&
                 session.toolbarLayout(kind) == backend.toolbarLayout(kind) &&
@@ -603,7 +612,8 @@ void drawingToolbarSeparatorCanMoveAndHideByDrop() {
     const auto drop = [](QWidget* target, const QString& itemId, const QPoint& point) {
         QMimeData mime;
         mime.setData("application/x-snow-shot-toolbar-item", itemId.toUtf8());
-        QDragEnterEvent enter(point, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+        QDragEnterEvent enter(QPointF(point), Qt::MoveAction, &mime, Qt::LeftButton,
+                              Qt::NoModifier);
         QCoreApplication::sendEvent(target, &enter);
         QDropEvent event(QPointF(point), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(target, &event);
@@ -696,7 +706,8 @@ void pinnedToolbarExportToolsCanMoveAndHideByDrop() {
     const auto drop = [](QWidget* target, const QString& itemId, const QPoint& point) {
         QMimeData mime;
         mime.setData("application/x-snow-shot-toolbar-item", itemId.toUtf8());
-        QDragEnterEvent enter(point, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+        QDragEnterEvent enter(QPointF(point), Qt::MoveAction, &mime, Qt::LeftButton,
+                              Qt::NoModifier);
         QCoreApplication::sendEvent(target, &enter);
         QDropEvent event(QPointF(point), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(target, &event);

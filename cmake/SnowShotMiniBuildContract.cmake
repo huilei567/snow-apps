@@ -21,7 +21,7 @@ set(SNOW_SHOT_MINI_EXCLUDED_LINK_TARGETS
 set(SNOW_SHOT_MINI_EXCLUDED_TARGETS
     ${SNOW_SHOT_MINI_EXCLUDED_LINK_TARGETS}
     snow_shot snow_shot_edition_full
-    snow_shot_storage snow_shot_settings_catalog snow_shot_settings_search
+    snow_shot_storage snow_shot_main_window_skin snow_shot_settings_catalog snow_shot_settings_search
     snow_shot_settings snow_shot_global_mouse snow_shot_login_item
     snow_shot_administrator snow_shot_permissions snow_shot_updates
     snow_shot_diagnostics snow_shot_crash_bridge
@@ -30,7 +30,7 @@ set(SNOW_SHOT_MINI_EXCLUDED_TARGETS
     snow_shot_release_translations)
 if(WIN32)
     # Windows Mini acquires its trusted text OCR worker on demand. macOS Mini
-    # deliberately bundles the local worker and its default model instead.
+    # bundles the local worker but acquires every selected model on demand.
     list(APPEND SNOW_SHOT_MINI_EXCLUDED_TARGETS
         snow_ocr_process snow_ocr_process_build snow_ocr_diagnostics_bridge
         onnxruntime::onnxruntime)

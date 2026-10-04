@@ -62,6 +62,10 @@ QStringList withDefaultCursorHints(std::initializer_list<QString> remaining) {
 }
 
 void toolMatrixMatchesRequestedVisibility() {
+    require(hintLines(ScreenshotActiveTool::Move) ==
+                QStringList{shortcutLine(QStringLiteral("Toggle cursor visibility"),
+                                         {QStringLiteral("`")})},
+            "Move must expose the cursor visibility shortcut");
     const QStringList transformHints = withDefaultCursorHints({
         shortcutLine(QStringLiteral("Maintain aspect ratio"), {QStringLiteral("Shift")}),
         shortcutLine(QStringLiteral("Fixed-angle rotation"), {QStringLiteral("Shift")}),
@@ -159,11 +163,18 @@ void toolMatrixMatchesRequestedVisibility() {
                 withDefaultCursorHints({}),
             "serial-number hints should be suppressed when quick selection is disabled");
 
+    require(
+        hintLines(ScreenshotActiveTool::RectangleEraser) ==
+                QStringList{
+                    modifierLine(QStringLiteral("Maintain aspect ratio"), Qt::ShiftModifier),
+                    QStringLiteral("Draw from center: Alt")} &&
+            hintLines(ScreenshotActiveTool::BrushEraser) ==
+                QStringList{modifierLine(QStringLiteral("Draw straight line"), Qt::ShiftModifier)},
+        "immutable erasers show only their creation modifiers");
     require(hintLines(ScreenshotActiveTool::Eraser).isEmpty() &&
                 hintLines(ScreenshotActiveTool::Ocr).isEmpty() &&
                 hintLines(ScreenshotActiveTool::Table).isEmpty() &&
                 hintLines(ScreenshotActiveTool::Qr).isEmpty() &&
-                hintLines(ScreenshotActiveTool::Move).isEmpty() &&
                 hintLines(ScreenshotActiveTool::Spotlight).isEmpty() &&
                 hintLines(ScreenshotActiveTool::Watermark).isEmpty(),
             "tools without requested shortcuts must not expose hint rows");
@@ -182,6 +193,8 @@ void configuredShortcutRowsUseActualValues() {
         {QStringLiteral("move_entire_selection"), shortcutBindings({QStringLiteral("Ctrl+M")})},
         {QStringLiteral("keep_selection_width_and_height_consistent"),
          shortcutBindings({QStringLiteral("Alt+R")})},
+        {QStringLiteral("selection_aspect_ratio_snap"),
+         shortcutBindings({QStringLiteral("G"), QStringLiteral("Ctrl+Alt+Q")})},
         {QStringLiteral("select_previously_selected_area"),
          shortcutBindings({QStringLiteral("P")})},
         {QStringLiteral("copy_color"), shortcutBindings({QStringLiteral("Alt+C")})},
@@ -193,7 +206,7 @@ void configuredShortcutRowsUseActualValues() {
     };
 
     const QVector<ScreenshotShortcutHintRow> rows = screenshotShortcutHintRows(context);
-    require(rows.size() == 11, "manual-selection configured hint row count changed");
+    require(rows.size() == 13, "manual-selection configured hint row count changed");
     require(rows.at(0).label == QStringLiteral("Move cursor up") &&
                 rows.at(0).shortcut ==
                     shortcutDisplay({QStringLiteral("Ctrl+Alt+I"), QStringLiteral("Up")}) &&
@@ -206,20 +219,26 @@ void configuredShortcutRowsUseActualValues() {
             "cursor directions must use four independent configured rows");
     require(rows.at(4).shortcut == shortcutDisplay({QStringLiteral("Ctrl+M")}) &&
                 rows.at(5).shortcut == shortcutDisplay({QStringLiteral("Alt+R")}) &&
-                rows.at(6).shortcut == shortcutDisplay({QStringLiteral("P")}) &&
-                rows.at(7).shortcut == shortcutDisplay({QStringLiteral("Alt+C")}),
+                rows.at(6).label == QStringLiteral("Selection Aspect Ratio Snap") &&
+                rows.at(6).shortcut ==
+                    shortcutDisplay({QStringLiteral("G"), QStringLiteral("Ctrl+Alt+Q")}) &&
+                rows.at(7).shortcut == shortcutDisplay({QStringLiteral("P")}) &&
+                rows.at(8).shortcut == shortcutDisplay({QStringLiteral("Alt+C")}),
             "selection action hints must use configured shortcuts");
-    require(rows.at(8).label == QStringLiteral("Toggle Global/Relative Coordinates") &&
-                rows.at(8).shortcut == shortcutDisplay({QStringLiteral("Alt+P")}),
+    require(rows.at(9).label == QStringLiteral("Toggle Global/Relative Coordinates") &&
+                rows.at(9).shortcut == shortcutDisplay({QStringLiteral("Alt+P")}),
             "coordinate toggle must follow Copy color and show the configured binding");
-    require(rows.at(9).label == QStringLiteral("Switch color format") &&
-                rows.at(9).shortcut == shortcutDisplay({QStringLiteral("Shift")}),
+    require(rows.at(10).label == QStringLiteral("Toggle cursor visibility") &&
+                rows.at(10).shortcut == shortcutDisplay({QStringLiteral("`")}),
+            "cursor visibility must show its configurable backtick default");
+    require(rows.at(11).label == QStringLiteral("Switch color format") &&
+                rows.at(11).shortcut == shortcutDisplay({QStringLiteral("Shift")}),
             "the fixed color-format shortcut must remain visible");
-    require(rows.at(10).label == QStringLiteral("Switch screenshot history") &&
-                rows.at(10).shortcut ==
+    require(rows.at(12).label == QStringLiteral("Switch screenshot history") &&
+                rows.at(12).shortcut ==
                     shortcutDisplay({QStringLiteral("PgUp"), QStringLiteral("["),
                                      QStringLiteral("PgDown"), QStringLiteral("]")}) &&
-                rows.at(10).shortcutChips ==
+                rows.at(12).shortcutChips ==
                     QStringList{shortcutDisplay({QStringLiteral("PgUp"), QStringLiteral("[")}),
                                 shortcutDisplay({QStringLiteral("PgDown"), QStringLiteral("]")})},
             "history hint must split the previous and next shortcuts into separate chips");
@@ -229,6 +248,11 @@ void coordinateHintFollowsCopyColor() {
     for (const auto mode :
          {ScreenshotShortcutHintMode::Selection, ScreenshotShortcutHintMode::SmartSelection}) {
         const auto rows = screenshotShortcutHintRows(mode);
+        const auto snap = std::find_if(rows.cbegin(), rows.cend(), [](const auto& row) {
+            return row.label == QStringLiteral("Selection Aspect Ratio Snap");
+        });
+        require(snap != rows.cend() && snap->shortcut == shortcutDisplay({QStringLiteral("Q")}),
+                "both selection stages must show the configurable Q snap default");
         const auto copy = std::find_if(rows.cbegin(), rows.cend(), [](const auto& row) {
             return row.label == QStringLiteral("Copy color");
         });
@@ -254,8 +278,10 @@ void defaultHistoryShortcutUsesSeparateChips() {
         screenshotShortcutHintRows(ScreenshotShortcutHintMode::Selection);
     const ScreenshotShortcutHintRow& historyRow = rows.constLast();
     require(historyRow.label == QStringLiteral("Switch screenshot history") &&
-                historyRow.shortcut == QStringLiteral(", / .") &&
-                historyRow.shortcutChips == QStringList{QStringLiteral(","), QStringLiteral(".")},
+                historyRow.shortcut ==
+                    shortcutDisplay({QStringLiteral(","), QStringLiteral(".")}) &&
+                historyRow.shortcutChips == QStringList{shortcutDisplay({QStringLiteral(",")}),
+                                                        shortcutDisplay({QStringLiteral(".")})},
             "default history keys must render as separate comma and period chips");
 }
 

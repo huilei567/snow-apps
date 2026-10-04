@@ -67,6 +67,7 @@ class SettingsRuntimeSession final : public QObject {
 
     [[nodiscard]] const SettingsRegistry& registry() const;
     [[nodiscard]] SettingsFieldState state(const QString& fieldId) const;
+    [[nodiscard]] SettingsOptions options(const QString& fieldId) const;
     [[nodiscard]] bool hasDirtyFields() const;
     [[nodiscard]] bool hasPendingWrites() const;
     [[nodiscard]] QStringList dirtyFieldIds() const;
@@ -87,6 +88,9 @@ class SettingsRuntimeSession final : public QObject {
     [[nodiscard]] QVector<SettingsRuntimeOption>
     dynamicSelectOptions(SettingsSelectBinding binding) const;
     void requestFontOptions();
+    void requestSelectOptions(SettingsSelectBinding binding) {
+        m_backend.requestSelectOptions(binding);
+    }
     [[nodiscard]] bool applySelectValue(SettingsSelectBinding binding, const QVariant& value);
     [[nodiscard]] bool switchValue(SettingsSwitchBinding binding) const;
     [[nodiscard]] bool switchEnabled(SettingsSwitchBinding binding) const;
@@ -105,6 +109,8 @@ class SettingsRuntimeSession final : public QObject {
     [[nodiscard]] bool applyRadioValue(SettingsRadioBinding binding, const QVariant& value);
     [[nodiscard]] QString filePathValue(SettingsFilePathBinding binding) const;
     [[nodiscard]] bool applyFilePathValue(SettingsFilePathBinding binding, const QString& value);
+    [[nodiscard]] QString filePathStatus(SettingsFilePathBinding binding) const;
+    [[nodiscard]] bool filePathStatusError(SettingsFilePathBinding binding) const;
     [[nodiscard]] QString directoryPathValue(SettingsDirectoryPathBinding binding) const;
     [[nodiscard]] bool applyDirectoryPathValue(SettingsDirectoryPathBinding binding,
                                                const QString& value);
@@ -138,7 +144,8 @@ class SettingsRuntimeSession final : public QObject {
     globalMouseCombinationAvailable(SettingsGlobalMouseAction action,
                                     const SettingsGlobalMouseCombination& combination) const;
     [[nodiscard]] SettingsActionState actionState(SettingsActionBinding binding) const;
-    [[nodiscard]] bool triggerAction(SettingsActionBinding binding, const QString& filePath = {});
+    [[nodiscard]] bool triggerAction(SettingsActionBinding binding, const QString& filePath = {},
+                                     bool includeToolbarStyles = false);
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION
     [[nodiscard]] CustomAiModels customAiModels() const;
     bool applyCustomAiModels(const CustomAiModels& models);
@@ -197,9 +204,15 @@ class SettingsRuntimeSession final : public QObject {
                          const snow_shot::presentation::GlobalShortcutRegistrationState& state);
     void auxiliaryIntegerChanged(snow_shot::presentation::settings::SettingsIntegerBinding binding,
                                  int value);
+    void filePathStatusChanged(snow_shot::presentation::settings::SettingsFilePathBinding binding);
     void refreshed();
 
   private:
+    struct FilePathStatus {
+        QString text;
+        bool error = false;
+    };
+
     struct PendingWrite {
         QVariant target;
         QVariant baseline;
@@ -258,6 +271,7 @@ class SettingsRuntimeSession final : public QObject {
                                                  const PendingWrite* activeWrite);
     void refreshField(const QString& fieldId, std::optional<quint64> expectedRevision);
     void refreshAuxiliaryInteger(SettingsIntegerBinding binding);
+    void refreshFilePathStatus(SettingsFilePathBinding binding);
     void updateState(const QString& fieldId, const SettingsFieldState& next);
 
     const SettingsRegistry& m_registry;
@@ -273,6 +287,7 @@ class SettingsRuntimeSession final : public QObject {
     mutable QHash<QString, SettingsOptions> m_optionsCache;
     QHash<int, SettingsCommandState> m_commandStateCache;
     QHash<int, int> m_auxiliaryIntegerValues;
+    QHash<int, FilePathStatus> m_filePathStatuses;
     storage::StorageStatus m_lastStorageStatus;
     bool m_hasStorageStatus = false;
     bool m_refreshPending = false;

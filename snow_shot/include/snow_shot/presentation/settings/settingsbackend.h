@@ -14,13 +14,19 @@
 #include "snow_shot/platform/macos/loginitemservice.h"
 
 #include <QObject>
+#include <QPointer>
 #include <QVariant>
 #include <QVector>
 #include <future>
 
+namespace snow_shot::translation {
+class TranslationService;
+}
+
 namespace snow_shot::presentation {
 class GlobalShortcutManager;
 class GlobalMouseManager;
+class MainWindowSkinController;
 namespace settings {
 
 struct SettingsRuntimeOption {
@@ -55,6 +61,16 @@ class SettingsBackend : public QObject {
     [[nodiscard]] virtual QVariant selectValue(SettingsSelectBinding binding) const = 0;
     [[nodiscard]] QVector<SettingsRuntimeOption> virtual dynamicSelectOptions(
         SettingsSelectBinding binding) const = 0;
+    virtual void requestSelectOptions(SettingsSelectBinding) {}
+    virtual bool selectOptionsLoading(SettingsSelectBinding) const {
+        return false;
+    }
+    virtual QString selectOptionsError(SettingsSelectBinding) const {
+        return {};
+    }
+    virtual bool selectEnabled(SettingsSelectBinding) const {
+        return true;
+    }
     [[nodiscard]] virtual bool applySelectValue(SettingsSelectBinding binding,
                                                 const QVariant& value) = 0;
 
@@ -90,6 +106,13 @@ class SettingsBackend : public QObject {
     [[nodiscard]] virtual QString filePathValue(SettingsFilePathBinding binding) const = 0;
     [[nodiscard]] virtual bool applyFilePathValue(SettingsFilePathBinding binding,
                                                   const QString& value) = 0;
+    [[nodiscard]] virtual QString filePathStatus(SettingsFilePathBinding) const {
+        return {};
+    }
+    [[nodiscard]] virtual bool filePathStatusError(SettingsFilePathBinding) const {
+        return false;
+    }
+    virtual void reloadFilePathValue(SettingsFilePathBinding) {}
 
     [[nodiscard]] virtual QString
     directoryPathValue(SettingsDirectoryPathBinding binding) const = 0;
@@ -174,7 +197,8 @@ class SettingsBackend : public QObject {
 
     [[nodiscard]] virtual SettingsActionState actionState(SettingsActionBinding binding) const = 0;
     [[nodiscard]] virtual bool triggerAction(SettingsActionBinding binding,
-                                             const QString& filePath = {}) = 0;
+                                             const QString& filePath = {},
+                                             bool includeToolbarStyles = false) = 0;
     [[nodiscard]] virtual storage::StorageStatus storageStatus() const = 0;
     virtual void refreshPlatformSettings() {}
     virtual void refreshStorageStatus() {}
@@ -211,6 +235,13 @@ class SettingsBackend : public QObject {
 
 class BuiltInSettingsBackend final : public SettingsBackend {
   public:
+#if SNOW_SHOT_ENABLE_TEXT_TRANSLATION
+    void setTranslationService(translation::TranslationService* service);
+#endif
+    void requestSelectOptions(SettingsSelectBinding binding) override;
+    bool selectOptionsLoading(SettingsSelectBinding binding) const override;
+    QString selectOptionsError(SettingsSelectBinding binding) const override;
+    bool selectEnabled(SettingsSelectBinding binding) const override;
     explicit BuiltInSettingsBackend(
         ::snow_shot::presentation::GlobalShortcutManager& shortcutManager,
         QObject* parent = nullptr, GlobalMouseManager* mouseManager = nullptr,
@@ -250,6 +281,9 @@ class BuiltInSettingsBackend final : public SettingsBackend {
     [[nodiscard]] QString filePathValue(SettingsFilePathBinding binding) const override;
     [[nodiscard]] bool applyFilePathValue(SettingsFilePathBinding binding,
                                           const QString& value) override;
+    [[nodiscard]] QString filePathStatus(SettingsFilePathBinding binding) const override;
+    [[nodiscard]] bool filePathStatusError(SettingsFilePathBinding binding) const override;
+    void reloadFilePathValue(SettingsFilePathBinding binding) override;
     [[nodiscard]] QString directoryPathValue(SettingsDirectoryPathBinding binding) const override;
     [[nodiscard]] bool applyDirectoryPathValue(SettingsDirectoryPathBinding binding,
                                                const QString& value) override;
@@ -282,8 +316,8 @@ class BuiltInSettingsBackend final : public SettingsBackend {
     applyGlobalMouseCombination(SettingsGlobalMouseAction action,
                                 const SettingsGlobalMouseCombination& combination) override;
     [[nodiscard]] SettingsActionState actionState(SettingsActionBinding binding) const override;
-    [[nodiscard]] bool triggerAction(SettingsActionBinding binding,
-                                     const QString& filePath = {}) override;
+    [[nodiscard]] bool triggerAction(SettingsActionBinding binding, const QString& filePath = {},
+                                     bool includeToolbarStyles = false) override;
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION
     [[nodiscard]] CustomAiModels customAiModels() const override;
     bool applyCustomAiModels(const CustomAiModels& models) override;
@@ -302,12 +336,19 @@ class BuiltInSettingsBackend final : public SettingsBackend {
     [[nodiscard]] bool resetSection(SettingsSectionReset reset) override;
 
   private:
+    void connectSkinControllerIfNeeded();
+
     ::snow_shot::presentation::GlobalShortcutManager& m_shortcutManager;
     AppPermissionService* m_permissions = nullptr;
     GlobalMouseManager* m_mouseManager = nullptr;
     platform::macos::LoginItemService* m_loginItems = nullptr;
+    QPointer<MainWindowSkinController> m_skinController;
+    QMetaObject::Connection m_skinStatusConnection;
     bool m_copyLogBusy = false;
     bool m_configurationBusy = false;
+#if SNOW_SHOT_ENABLE_TEXT_TRANSLATION
+    QPointer<translation::TranslationService> m_translationService;
+#endif
 };
 
 } // namespace settings

@@ -4,6 +4,7 @@
     "ApplicationRestart",
     "DiagnosticsService",
     "EditionMetadata",
+    "FloatingToolbar",
     "LanguageCatalog",
     "MainContentHeaderWidget",
     "MainWindow",
@@ -22,8 +23,10 @@
     "AppPermissions",
     "CustomAiModelsSettingsWidget",
     "DrawingToolbarEditorSettingsWidget",
+    "FloatingToolbarEditorSettingsWidget",
     "GlobalMouseRow",
     "LoginItemService",
+    "MainWindowSkin",
     "PermissionGuide",
     "PinnedToolbarEditorSettingsWidget",
     "ScreenshotMcpSettings",
@@ -73,12 +76,16 @@
   "recording": [
     "RecordingAudioGainPopover",
     "RecordingEffectPreview",
-    "RecordingRenderDialog",
     "RecordingKeyboardLabels",
-    "ScreenRecordingSettingsDialog",
-    "ScreenRecordingController"
+    "RecordingRegionDragHandle",
+    "RecordingRenderDialog",
+    "RecordingTrimSession",
+    "RecordingTrimToolbar",
+    "ScreenRecordingController",
+    "ScreenRecordingSettingsDialog"
   ],
   "recognition": [
+    "OcrTextOptions",
     "ScreenshotImageConversionController",
     "ScreenshotImageConversionView",
     "ScreenshotOcrController",
@@ -107,6 +114,7 @@
   ],
   "updates": [
     "UpdateErrors",
+    "UpdateProgress",
     "UpdateService",
     "snow_shot::update::UpdateService"
   ]

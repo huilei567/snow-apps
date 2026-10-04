@@ -320,16 +320,19 @@ void ScreenshotOverlayCoordinator::updateGuideLines(const ScreenshotDisplaySessi
                                                     ScreenshotOverlayWindow* owner,
                                                     const QPointF& localPosition, bool selecting,
                                                     const QColor& cursorColor,
-                                                    const QColor& monitorCenterColor) const {
+                                                    const QColor& monitorCenterColor,
+                                                    const QColor& selectionCenterColor) const {
     m_canvasPresenter.updateGuideLines(displaySession, owner, localPosition, selecting, cursorColor,
-                                       monitorCenterColor);
+                                       monitorCenterColor, selectionCenterColor);
 }
 
 void ScreenshotOverlayCoordinator::updateGuideLinesAtGlobalPosition(
     const ScreenshotDisplaySession& displaySession, const QPoint& globalPosition, bool selecting,
-    const QColor& cursorColor, const QColor& monitorCenterColor) const {
+    const QColor& cursorColor, const QColor& monitorCenterColor,
+    const QColor& selectionCenterColor) const {
     m_canvasPresenter.updateGuideLinesAtGlobalPosition(displaySession, globalPosition, selecting,
-                                                       cursorColor, monitorCenterColor);
+                                                       cursorColor, monitorCenterColor,
+                                                       selectionCenterColor);
 }
 
 void ScreenshotOverlayCoordinator::clearGuideLines(
@@ -406,8 +409,9 @@ void ScreenshotOverlayCoordinator::setTextStyle(const ScreenshotDisplaySession& 
 }
 
 void ScreenshotOverlayCoordinator::setSerialNumberStyle(
-    const ScreenshotDisplaySession& displaySession, const SnowCanvasSerialNumberStyle& style) {
-    m_canvasPresenter.setSerialNumberStyle(displaySession, style);
+    const ScreenshotDisplaySession& displaySession, const SnowCanvasSerialNumberStyle& style,
+    std::optional<quint32> properties) {
+    m_canvasPresenter.setSerialNumberStyle(displaySession, style, properties);
 }
 
 void ScreenshotOverlayCoordinator::adjustSelectedSerialNumbers(
@@ -505,9 +509,10 @@ ScreenshotColorPickerWindow* ScreenshotOverlayCoordinator::colorPicker() const {
 void ScreenshotOverlayCoordinator::updateColorPicker(
     ScreenshotOverlayWindow* overlay, const QImage& image, const QRect& physicalRect,
     const QPoint& physicalPoint, const QPointF& localPosition, qreal opacity,
-    const ScreenshotCoordinateDisplayValues& displayValues) {
+    const ScreenshotCoordinateDisplayValues& displayValues, const QImage& cursorPatch,
+    const QRect& cursorPixelRect) {
     m_uiHost.updateColorPicker(overlay, image, physicalRect, physicalPoint, localPosition, opacity,
-                               displayValues);
+                               displayValues, cursorPatch, cursorPixelRect);
 }
 
 void ScreenshotOverlayCoordinator::hideColorPicker() {

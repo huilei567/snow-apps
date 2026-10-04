@@ -19,14 +19,15 @@ use crate::{
     RectangleShapeStyle, SERIAL_NUMBER_STYLE_MIXED_COLOR, SERIAL_NUMBER_STYLE_MIXED_FILL,
     SERIAL_NUMBER_STYLE_MIXED_FILL_STYLE, SERIAL_NUMBER_STYLE_MIXED_FONT_FAMILY,
     SERIAL_NUMBER_STYLE_MIXED_FONT_SIZE, SERIAL_NUMBER_STYLE_MIXED_NUMBER,
-    SERIAL_NUMBER_STYLE_MIXED_OPACITY, SERIAL_NUMBER_STYLE_MIXED_STROKE_STYLE,
-    SERIAL_NUMBER_STYLE_MIXED_STROKE_WIDTH, SERIAL_NUMBER_STYLE_MIXED_TYPE,
-    SHAPE_STYLE_MIXED_ARROW_TYPE, SHAPE_STYLE_MIXED_CORNER_RADII, SHAPE_STYLE_MIXED_END_ARROWHEAD,
-    SHAPE_STYLE_MIXED_FILL, SHAPE_STYLE_MIXED_FILL_STYLE, SHAPE_STYLE_MIXED_HIGHLIGHT_SHAPE,
-    SHAPE_STYLE_MIXED_OPACITY, SHAPE_STYLE_MIXED_SHAPE, SHAPE_STYLE_MIXED_START_ARROWHEAD,
-    SHAPE_STYLE_MIXED_STROKE, SHAPE_STYLE_MIXED_STROKE_STYLE, SHAPE_STYLE_MIXED_STROKE_WIDTH,
-    SHAPE_STYLE_PROPERTY_ARROW_TYPE, SHAPE_STYLE_PROPERTY_CORNER_RADII,
-    SHAPE_STYLE_PROPERTY_END_ARROWHEAD, SHAPE_STYLE_PROPERTY_FILL, SHAPE_STYLE_PROPERTY_FILL_STYLE,
+    SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE, SERIAL_NUMBER_STYLE_MIXED_OPACITY,
+    SERIAL_NUMBER_STYLE_MIXED_STROKE_STYLE, SERIAL_NUMBER_STYLE_MIXED_STROKE_WIDTH,
+    SERIAL_NUMBER_STYLE_MIXED_TYPE, SHAPE_STYLE_MIXED_ARROW_TYPE, SHAPE_STYLE_MIXED_CORNER_RADII,
+    SHAPE_STYLE_MIXED_END_ARROWHEAD, SHAPE_STYLE_MIXED_FILL, SHAPE_STYLE_MIXED_FILL_STYLE,
+    SHAPE_STYLE_MIXED_HIGHLIGHT_SHAPE, SHAPE_STYLE_MIXED_OPACITY, SHAPE_STYLE_MIXED_SHAPE,
+    SHAPE_STYLE_MIXED_START_ARROWHEAD, SHAPE_STYLE_MIXED_STROKE, SHAPE_STYLE_MIXED_STROKE_STYLE,
+    SHAPE_STYLE_MIXED_STROKE_WIDTH, SHAPE_STYLE_PROPERTY_ARROW_TYPE,
+    SHAPE_STYLE_PROPERTY_CORNER_RADII, SHAPE_STYLE_PROPERTY_END_ARROWHEAD,
+    SHAPE_STYLE_PROPERTY_FILL, SHAPE_STYLE_PROPERTY_FILL_STYLE,
     SHAPE_STYLE_PROPERTY_HIGHLIGHT_SHAPE, SHAPE_STYLE_PROPERTY_OPACITY, SHAPE_STYLE_PROPERTY_SHAPE,
     SHAPE_STYLE_PROPERTY_START_ARROWHEAD, SHAPE_STYLE_PROPERTY_STROKE,
     SHAPE_STYLE_PROPERTY_STROKE_STYLE, SHAPE_STYLE_PROPERTY_STROKE_WIDTH, SelectionArrowState,
@@ -43,6 +44,7 @@ use crate::{
 const FONT_SIZE_STEPS: [f64; 5] = [MIN_TEXT_FONT_SIZE, 16.0, 21.0, 27.0, 42.0];
 const SERIAL_NUMBER_STYLE_ALL_PROPERTIES: u32 = SERIAL_NUMBER_STYLE_MIXED_NUMBER
     | SERIAL_NUMBER_STYLE_MIXED_TYPE
+    | SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE
     | SERIAL_NUMBER_STYLE_MIXED_COLOR
     | SERIAL_NUMBER_STYLE_MIXED_FILL
     | SERIAL_NUMBER_STYLE_MIXED_FILL_STYLE
@@ -426,6 +428,7 @@ impl SerialNumberStyle {
         Self {
             number: serial.number.max(0),
             serial_number_type: serial.serial_number_type,
+            numeric_type: serial.numeric_type,
             color: serial.color,
             fill: serial.fill,
             fill_style: serial.fill_style,
@@ -632,6 +635,9 @@ fn serial_number_style_changed_properties(
     if current.number != next.number {
         properties |= SERIAL_NUMBER_STYLE_MIXED_NUMBER;
     }
+    if current.numeric_type != next.numeric_type {
+        properties |= SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE;
+    }
     if current.serial_number_type != next.serial_number_type {
         properties |= SERIAL_NUMBER_STYLE_MIXED_TYPE;
     }
@@ -683,11 +689,18 @@ fn serial_number_with_style_properties(
     } else {
         serial.font_size
     };
-    let size_affecting_style_changed = serial.number != number.max(0)
+    let numeric_type = if properties & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE != 0 {
+        style.numeric_type
+    } else {
+        serial.numeric_type
+    };
+    let size_affecting_style_changed = serial.numeric_type != numeric_type
+        || serial.number != number.max(0)
         || serial.font_size != font_size
         || serial.serial_number_type.supports_number() != next_type.supports_number();
     let mut typed_serial = serial.clone();
     typed_serial.serial_number_type = next_type;
+    typed_serial.numeric_type = numeric_type;
     let mut updated = if size_affecting_style_changed {
         serial_number_with_label_style(&typed_serial, number, font_size)
     } else {
@@ -771,6 +784,12 @@ impl Editor {
         }
         if self.state.active_tool == ActiveTool::Spotlight && self.state.selection.ids.is_empty() {
             return StyleToolbarSource::DefaultSpotlight;
+        }
+        if self.state.active_tool == ActiveTool::RectangleEraser {
+            return StyleToolbarSource::DefaultRectangleEraser;
+        }
+        if self.state.active_tool == ActiveTool::BrushEraser {
+            return StyleToolbarSource::DefaultBrushEraser;
         }
         if self.state.active_tool == ActiveTool::Eraser {
             return StyleToolbarSource::Eraser;
@@ -860,6 +879,27 @@ impl Editor {
         } else {
             StyleToolbarSource::DefaultRectangle
         }
+    }
+
+    pub fn brush_eraser_style(&self) -> crate::BrushEraserStyle {
+        self.state.default_brush_eraser
+    }
+
+    pub fn set_brush_eraser_creation_style(
+        &mut self,
+        style: crate::BrushEraserStyle,
+        properties: u32,
+    ) -> Result<(), ErrorCode> {
+        if properties & !crate::BRUSH_ERASER_STYLE_PROPERTY_STROKE_WIDTH != 0
+            || !style.stroke_width.is_finite()
+            || !(1.0..=72.0).contains(&style.stroke_width)
+        {
+            return Err(ErrorCode::InvalidArgument);
+        }
+        if properties & crate::BRUSH_ERASER_STYLE_PROPERTY_STROKE_WIDTH != 0 {
+            self.state.default_brush_eraser = style;
+        }
+        Ok(())
     }
 
     pub fn filter_style(&self, document: &DocumentModel) -> FilterStyle {
@@ -973,18 +1013,14 @@ impl Editor {
             })
     }
 
-    pub fn set_filter_style(
-        &mut self,
-        document: &DocumentModel,
-        style: FilterStyle,
-        properties: u32,
-    ) -> Result<Option<EditorCommand>, ErrorCode> {
-        if properties
-            & !(FILTER_STYLE_PROPERTY_TYPE
-                | FILTER_STYLE_PROPERTY_STRENGTH
-                | FILTER_STYLE_PROPERTY_OPACITY
-                | FILTER_STYLE_PROPERTY_STROKE_WIDTH)
-            != 0
+    fn validate_filter_style_patch(style: FilterStyle, properties: u32) -> Result<(), ErrorCode> {
+        if style.filter_type == snow_draw_engine_document::CanvasFilterType::RestoreBackground
+            || properties
+                & !(FILTER_STYLE_PROPERTY_TYPE
+                    | FILTER_STYLE_PROPERTY_STRENGTH
+                    | FILTER_STYLE_PROPERTY_OPACITY
+                    | FILTER_STYLE_PROPERTY_STROKE_WIDTH)
+                != 0
             || !style.opacity.is_finite()
             || !(0.0..=1.0).contains(&style.opacity)
             || (properties & FILTER_STYLE_PROPERTY_STROKE_WIDTH != 0
@@ -992,23 +1028,89 @@ impl Editor {
         {
             return Err(ErrorCode::InvalidArgument);
         }
+        Ok(())
+    }
+
+    fn update_shared_filter_strength(&mut self, strength: f64) {
+        self.state.default_filter.strength = if self.state.default_filter.filter_type
+            == snow_draw_engine_document::CanvasFilterType::SmartErase
+        {
+            0.5
+        } else {
+            strength
+        };
+        self.state.default_pen_filter.strength = if self.state.default_pen_filter.filter_type
+            == snow_draw_engine_document::CanvasFilterType::SmartErase
+        {
+            0.5
+        } else {
+            strength
+        };
+    }
+
+    // Creation defaults share strength, while the other properties belong to
+    // the named filter family. Selection and the active tool remain untouched.
+    pub fn set_filter_creation_style(
+        &mut self,
+        style: FilterStyle,
+        properties: u32,
+        tool: ActiveTool,
+    ) -> Result<(), ErrorCode> {
+        if !matches!(tool, ActiveTool::RectangleFilter | ActiveTool::PenFilter) {
+            return Err(ErrorCode::InvalidArgument);
+        }
+        Self::validate_filter_style_patch(style, properties)?;
         let strength = FilterData::normalized_strength(style.strength);
         if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
-            self.state.default_filter.strength = if self.state.default_filter.filter_type
-                == snow_draw_engine_document::CanvasFilterType::SmartErase
-            {
-                0.5
-            } else {
-                strength
-            };
-            self.state.default_pen_filter.strength = if self.state.default_pen_filter.filter_type
-                == snow_draw_engine_document::CanvasFilterType::SmartErase
-            {
-                0.5
-            } else {
-                strength
-            };
+            self.update_shared_filter_strength(strength);
         }
+        if tool == ActiveTool::PenFilter {
+            if properties & FILTER_STYLE_PROPERTY_TYPE != 0 {
+                self.state.default_pen_filter.filter_type = style.filter_type;
+            }
+            if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
+                self.state.default_pen_filter.strength = strength;
+            }
+            if properties & FILTER_STYLE_PROPERTY_OPACITY != 0 {
+                self.state.default_pen_filter.opacity = style.opacity;
+            }
+            if properties & FILTER_STYLE_PROPERTY_STROKE_WIDTH != 0 {
+                self.state.default_pen_filter.stroke_width = style.stroke_width;
+            }
+        } else {
+            if properties & FILTER_STYLE_PROPERTY_TYPE != 0 {
+                self.state.default_filter.filter_type = style.filter_type;
+            }
+            if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
+                self.state.default_filter.strength = strength;
+            }
+            if properties & FILTER_STYLE_PROPERTY_OPACITY != 0 {
+                self.state.default_filter.opacity = style.opacity;
+            }
+            if properties & FILTER_STYLE_PROPERTY_STROKE_WIDTH != 0 {
+                self.state.default_filter_stroke_width = style.stroke_width;
+            }
+        }
+        if self.state.default_filter.filter_type
+            == snow_draw_engine_document::CanvasFilterType::SmartErase
+        {
+            self.state.default_filter.strength = 0.5;
+        }
+        if self.state.default_pen_filter.filter_type
+            == snow_draw_engine_document::CanvasFilterType::SmartErase
+        {
+            self.state.default_pen_filter.strength = 0.5;
+        }
+        Ok(())
+    }
+
+    pub fn set_filter_style(
+        &mut self,
+        document: &DocumentModel,
+        style: FilterStyle,
+        properties: u32,
+    ) -> Result<Option<EditorCommand>, ErrorCode> {
+        Self::validate_filter_style_patch(style, properties)?;
         let selected_ids = self
             .state
             .selection
@@ -1018,44 +1120,17 @@ impl Editor {
             .filter(|id| document.filter(*id).is_ok() || document.pen_filter(*id).is_ok())
             .collect::<Vec<_>>();
         if selected_ids.is_empty() {
-            if self.state.active_tool == ActiveTool::PenFilter {
-                if properties & FILTER_STYLE_PROPERTY_TYPE != 0 {
-                    self.state.default_pen_filter.filter_type = style.filter_type;
-                }
-                if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
-                    self.state.default_pen_filter.strength = strength;
-                }
-                if properties & FILTER_STYLE_PROPERTY_OPACITY != 0 {
-                    self.state.default_pen_filter.opacity = style.opacity;
-                }
-                if properties & FILTER_STYLE_PROPERTY_STROKE_WIDTH != 0 {
-                    self.state.default_pen_filter.stroke_width = style.stroke_width;
-                }
+            let tool = if self.state.active_tool == ActiveTool::PenFilter {
+                ActiveTool::PenFilter
             } else {
-                if properties & FILTER_STYLE_PROPERTY_TYPE != 0 {
-                    self.state.default_filter.filter_type = style.filter_type;
-                }
-                if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
-                    self.state.default_filter.strength = strength;
-                }
-                if properties & FILTER_STYLE_PROPERTY_OPACITY != 0 {
-                    self.state.default_filter.opacity = style.opacity;
-                }
-                if properties & FILTER_STYLE_PROPERTY_STROKE_WIDTH != 0 {
-                    self.state.default_filter_stroke_width = style.stroke_width;
-                }
-            }
-            if self.state.default_filter.filter_type
-                == snow_draw_engine_document::CanvasFilterType::SmartErase
-            {
-                self.state.default_filter.strength = 0.5;
-            }
-            if self.state.default_pen_filter.filter_type
-                == snow_draw_engine_document::CanvasFilterType::SmartErase
-            {
-                self.state.default_pen_filter.strength = 0.5;
-            }
+                ActiveTool::RectangleFilter
+            };
+            self.set_filter_creation_style(style, properties, tool)?;
             return Ok(None);
+        }
+        let strength = FilterData::normalized_strength(style.strength);
+        if properties & FILTER_STYLE_PROPERTY_STRENGTH != 0 {
+            self.update_shared_filter_strength(strength);
         }
         let mut transaction = Transaction::new("update filter style");
         for id in selected_ids {
@@ -1464,6 +1539,9 @@ impl Editor {
             let style = SerialNumberStyle::from_serial_number(serial);
             if style.number != first.number {
                 mixed |= SERIAL_NUMBER_STYLE_MIXED_NUMBER;
+            }
+            if style.numeric_type != first.numeric_type {
+                mixed |= SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE;
             }
             if style.serial_number_type != first.serial_number_type {
                 mixed |= SERIAL_NUMBER_STYLE_MIXED_TYPE;
@@ -1936,10 +2014,18 @@ impl Editor {
         let changed_properties = serial_number_style_changed_properties(&current_style, &style);
         let type_only_change = changed_properties == SERIAL_NUMBER_STYLE_MIXED_TYPE
             || (changed_properties == 0 && mixed & SERIAL_NUMBER_STYLE_MIXED_TYPE != 0);
-        let properties = if type_only_change {
+        let properties = if changed_properties == SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE
+            || (changed_properties == 0
+                && mixed & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE != 0
+                && mixed & SERIAL_NUMBER_STYLE_MIXED_TYPE == 0)
+        {
+            SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE
+        } else if type_only_change {
             SERIAL_NUMBER_STYLE_MIXED_TYPE
-        } else if mixed & SERIAL_NUMBER_STYLE_MIXED_TYPE != 0
-            && changed_properties & SERIAL_NUMBER_STYLE_MIXED_TYPE == 0
+        } else if (mixed & SERIAL_NUMBER_STYLE_MIXED_TYPE != 0
+            && changed_properties & SERIAL_NUMBER_STYLE_MIXED_TYPE == 0)
+            || (mixed & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE != 0
+                && changed_properties & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE == 0)
         {
             changed_properties
         } else {
@@ -2038,6 +2124,135 @@ mod tests {
             (actual - expected).abs() <= f64::EPSILON,
             "expected {actual} to equal {expected}"
         );
+    }
+
+    #[test]
+    fn filter_creation_style_preserves_selection_tool_and_document() {
+        let mut document = DocumentModel::new();
+        let id = document.allocate_element_id();
+        let filter = FilterData::default();
+        let mut insert = Transaction::new("filter fixture");
+        insert.insert_filter(id, ElementMeta::default(), filter);
+        document.apply_transaction(insert).unwrap();
+        let mut editor = Editor::new(snow_draw_engine_core::EngineConfig::default()).unwrap();
+        editor.set_active_tool(ActiveTool::Select).unwrap();
+        editor.set_selection_state(vec![id], Some(id));
+        let selected = editor.state.selection.clone();
+        let rectangle = FilterStyle {
+            filter_type: snow_draw_engine_document::CanvasFilterType::GaussianBlur,
+            strength: 0.3,
+            opacity: 0.6,
+            stroke_width: 7.0,
+        };
+        let pen = FilterStyle {
+            filter_type: snow_draw_engine_document::CanvasFilterType::Brightness,
+            strength: 0.8,
+            opacity: 0.9,
+            stroke_width: 20.0,
+        };
+        for _ in 0..128 {
+            editor
+                .set_filter_creation_style(
+                    rectangle,
+                    crate::FILTER_STYLE_PROPERTY_ALL,
+                    ActiveTool::RectangleFilter,
+                )
+                .unwrap();
+            editor
+                .set_filter_creation_style(
+                    pen,
+                    crate::FILTER_STYLE_PROPERTY_ALL,
+                    ActiveTool::PenFilter,
+                )
+                .unwrap();
+            assert_eq!(editor.active_tool(), ActiveTool::Select);
+            assert_eq!(editor.state.selection, selected);
+            assert_eq!(document.filter(id).unwrap(), &filter);
+            assert_eq!(editor.filter_style(&document).strength, filter.strength);
+            assert_eq!(
+                editor.state.default_filter.filter_type,
+                rectangle.filter_type
+            );
+            assert_eq!(editor.state.default_filter.opacity, rectangle.opacity);
+            assert_eq!(
+                editor.state.default_filter_stroke_width,
+                rectangle.stroke_width
+            );
+            assert_eq!(editor.state.default_filter.strength, pen.strength);
+            assert_eq!(editor.state.default_pen_filter.filter_type, pen.filter_type);
+            assert_eq!(editor.state.default_pen_filter.opacity, pen.opacity);
+            assert_eq!(
+                editor.state.default_pen_filter.stroke_width,
+                pen.stroke_width
+            );
+            assert_eq!(editor.state.default_pen_filter.strength, pen.strength);
+        }
+    }
+
+    #[test]
+    fn filter_creation_style_rejects_invalid_patches_and_normalizes_smart_erase() {
+        let mut editor = Editor::new(snow_draw_engine_core::EngineConfig::default()).unwrap();
+        let style = FilterStyle {
+            filter_type: snow_draw_engine_document::CanvasFilterType::SmartErase,
+            strength: 0.8,
+            opacity: 0.9,
+            stroke_width: 20.0,
+        };
+        let before = editor.state.clone();
+        for (patch, properties, tool) in [
+            (style, crate::FILTER_STYLE_PROPERTY_ALL, ActiveTool::Shape),
+            (style, u32::MAX, ActiveTool::PenFilter),
+            (
+                FilterStyle {
+                    opacity: f64::NAN,
+                    ..style
+                },
+                crate::FILTER_STYLE_PROPERTY_ALL,
+                ActiveTool::PenFilter,
+            ),
+            (
+                FilterStyle {
+                    stroke_width: 73.0,
+                    ..style
+                },
+                crate::FILTER_STYLE_PROPERTY_ALL,
+                ActiveTool::PenFilter,
+            ),
+        ] {
+            assert_eq!(
+                editor.set_filter_creation_style(patch, properties, tool),
+                Err(ErrorCode::InvalidArgument)
+            );
+            assert_eq!(editor.state, before);
+        }
+        editor
+            .set_filter_creation_style(
+                style,
+                crate::FILTER_STYLE_PROPERTY_ALL,
+                ActiveTool::PenFilter,
+            )
+            .unwrap();
+        assert_eq!(editor.state.default_filter.strength, 0.8);
+        assert_eq!(editor.state.default_pen_filter.strength, 0.5);
+        let pen = editor.state.default_pen_filter.clone();
+        let rectangle = FilterStyle {
+            filter_type: snow_draw_engine_document::CanvasFilterType::Inversion,
+            opacity: 0.4,
+            ..style
+        };
+        editor
+            .set_filter_creation_style(
+                rectangle,
+                FILTER_STYLE_PROPERTY_TYPE | FILTER_STYLE_PROPERTY_OPACITY,
+                ActiveTool::RectangleFilter,
+            )
+            .unwrap();
+        assert_eq!(
+            editor.state.default_filter.filter_type,
+            rectangle.filter_type
+        );
+        assert_eq!(editor.state.default_filter.opacity, rectangle.opacity);
+        assert_eq!(editor.state.default_pen_filter, pen);
     }
 
     #[test]
@@ -3216,5 +3431,61 @@ mod tests {
         assert_eq!(document.filter(filter_id).unwrap().opacity, 0.75);
         assert_eq!(document.filter(second_filter_id).unwrap().opacity, 0.75);
         assert_eq!(*document.rectangle(rectangle_id).unwrap(), rectangle);
+    }
+    #[test]
+    fn serial_number_numeric_type_patches_preserve_mixed_values_and_other_styles() {
+        use snow_draw_engine_document::SerialNumberNumericType;
+        let mut document = DocumentModel::new();
+        let first_id = document.allocate_element_id();
+        let second_id = document.allocate_element_id();
+        let first = SerialNumberData {
+            number: 888,
+            ..SerialNumberData::default()
+        };
+        let second = SerialNumberData {
+            number: 27,
+            numeric_type: SerialNumberNumericType::UppercaseLetters,
+            font_size: 42.0,
+            serial_number_type: snow_draw_engine_document::SerialNumberType::SolidSquare,
+            ..SerialNumberData::default()
+        };
+        let mut insert = Transaction::new("mixed numeric formats");
+        insert.insert_serial_number(first_id, ElementMeta::default(), first.clone());
+        insert.insert_serial_number(second_id, ElementMeta::default(), second.clone());
+        document.apply_transaction(insert).unwrap();
+        let mut editor = Editor::new(Default::default()).unwrap();
+        editor.set_selection_state(vec![first_id, second_id], Some(first_id));
+        assert_ne!(
+            editor.serial_number_style_mixed(&document) & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE,
+            0
+        );
+        let mut style = editor.serial_number_style(&document);
+        style.numeric_type = SerialNumberNumericType::Roman;
+        let command = editor
+            .set_serial_number_style(&document, style)
+            .unwrap()
+            .unwrap();
+        let EditorCommand::ApplyTransaction(command) = command else {
+            panic!("expected transaction")
+        };
+        document.apply_transaction(command.transaction).unwrap();
+        for (id, original) in [(first_id, first), (second_id, second)] {
+            let changed = document.serial_number(id).unwrap();
+            let mut expected = original;
+            expected.numeric_type = SerialNumberNumericType::Roman;
+            expected.diameter = snow_draw_engine_document::resolve_serial_number_data_diameter(
+                &expected,
+                SerialNumberData::default().diameter,
+            );
+            assert_eq!(changed, &expected);
+        }
+        assert_eq!(
+            editor.serial_number_style_mixed(&document) & SERIAL_NUMBER_STYLE_MIXED_NUMERIC_TYPE,
+            0
+        );
+        assert_ne!(
+            editor.serial_number_style_mixed(&document) & SERIAL_NUMBER_STYLE_MIXED_NUMBER,
+            0
+        );
     }
 }

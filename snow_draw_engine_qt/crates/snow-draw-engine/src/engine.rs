@@ -22,6 +22,8 @@ mod document_commands;
 #[cfg(test)]
 mod duplicate_drag_tests;
 #[cfg(test)]
+mod eraser_filter_tests;
+#[cfg(test)]
 mod filter_snap_tests;
 #[cfg(test)]
 mod free_draw_continuation_tests;
@@ -270,6 +272,7 @@ impl Engine {
             shape_style_mixed: self.editor.shape_style_mixed(&self.model),
             filter_style: self.editor.filter_style(&self.model),
             filter_style_mixed: self.editor.filter_style_mixed(&self.model),
+            brush_eraser_style: self.editor.brush_eraser_style(),
         })
     }
 
@@ -322,6 +325,33 @@ impl Engine {
         } else {
             self.refresh_after_session_mutation(before)
         }
+    }
+
+    pub fn set_viewport_brush_eraser_creation_style(
+        &mut self,
+        id: ViewportId,
+        style: snow_draw_engine_editor::BrushEraserStyle,
+        properties: u32,
+    ) -> Result<MutationResult, ErrorCode> {
+        self.ensure_viewport(id)?;
+        let before = self.editor.snapshot();
+        self.editor
+            .set_brush_eraser_creation_style(style, properties)?;
+        self.refresh_after_session_mutation(before)
+    }
+
+    pub fn set_viewport_filter_creation_style(
+        &mut self,
+        id: ViewportId,
+        style: FilterStyle,
+        properties: u32,
+        tool: ActiveTool,
+    ) -> Result<MutationResult, ErrorCode> {
+        self.ensure_viewport(id)?;
+        let before = self.editor.snapshot();
+        self.editor
+            .set_filter_creation_style(style, properties, tool)?;
+        self.refresh_after_session_mutation(before)
     }
 
     pub fn watermark_config(&self) -> &WatermarkConfig {
@@ -397,6 +427,76 @@ mod tests {
     use snow_draw_engine_core::{ColorRgba8, CornerRadii};
     use snow_draw_engine_document::{CanvasFilterType, FillStyle};
     use snow_draw_engine_editor::FILTER_STYLE_PROPERTY_ALL;
+
+    #[test]
+    fn filter_creation_style_synchronizes_views_without_tool_or_history_changes() {
+        let mut engine = Engine::new(EngineConfig::default());
+        let first = engine.create_viewport(ViewportConfig::default()).unwrap();
+        let second = engine.create_viewport(ViewportConfig::default()).unwrap();
+        engine
+            .set_viewport_active_tool(first, ActiveTool::PenFilter)
+            .unwrap();
+        let history = engine.serialize_document_history().unwrap();
+        let style = FilterStyle {
+            filter_type: CanvasFilterType::GaussianBlur,
+            strength: 0.3,
+            opacity: 0.6,
+            stroke_width: 20.0,
+        };
+        let result = engine
+            .set_viewport_filter_creation_style(
+                first,
+                style,
+                FILTER_STYLE_PROPERTY_ALL,
+                ActiveTool::PenFilter,
+            )
+            .unwrap();
+        assert!(
+            result.changed_viewports.is_empty(),
+            "creation defaults alone must not invalidate rendered patches"
+        );
+        for viewport in [first, second] {
+            assert_eq!(
+                engine.viewport_active_tool(viewport).unwrap(),
+                ActiveTool::PenFilter
+            );
+            assert_eq!(
+                engine
+                    .viewport_style_toolbar_state(viewport)
+                    .unwrap()
+                    .filter_style,
+                style
+            );
+        }
+        assert_eq!(engine.serialize_document_history().unwrap(), history);
+        for _ in 0..128 {
+            assert!(
+                engine
+                    .set_viewport_filter_creation_style(
+                        first,
+                        style,
+                        FILTER_STYLE_PROPERTY_ALL,
+                        ActiveTool::PenFilter
+                    )
+                    .unwrap()
+                    .changed_viewports
+                    .is_empty()
+            );
+        }
+        let before = engine.serialize_document_session().unwrap();
+        assert_eq!(
+            engine
+                .set_viewport_filter_creation_style(
+                    first,
+                    style,
+                    FILTER_STYLE_PROPERTY_ALL,
+                    ActiveTool::Shape
+                )
+                .unwrap_err(),
+            ErrorCode::InvalidArgument
+        );
+        assert_eq!(engine.serialize_document_session().unwrap(), before);
+    }
 
     fn custom_config(seed: u8) -> EngineConfig {
         let mut defaults = StyleDefaults::default();

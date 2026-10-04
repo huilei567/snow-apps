@@ -32,6 +32,7 @@
 #include <QWidget>
 
 #include <memory>
+#include <optional>
 #include <functional>
 #include <vector>
 
@@ -276,7 +277,7 @@ class ScreenshotPinnedWindow final : public QWidget {
     void dragMoveEvent(QDragMoveEvent* event) override;
     void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
-    [[nodiscard]] QStringList eligibleDropPaths(const QDropEvent& event) const;
+    [[nodiscard]] bool acceptsDrop(const QDropEvent& event) const;
     void setFileDragActive(bool active);
 
     void createUi();
@@ -302,6 +303,7 @@ class ScreenshotPinnedWindow final : public QWidget {
     void setControlsPointerInside(bool inside);
     void updateControlsVisibility();
     void destroyCanvas();
+    void hideForClosing();
     using MaterializationCallback = std::function<void(bool)>;
     using PresentationCompletion = std::function<void(bool, QImage)>;
     void requestMaterializedImage(MaterializationCallback callback);
@@ -325,6 +327,9 @@ class ScreenshotPinnedWindow final : public QWidget {
     [[nodiscard]] bool copyHiddenTextSelection();
     void updateOcrPresentation();
     void updateRecognitionContentGeometry();
+    void updateOriginalImagePreviewVisibility();
+    void beginAuxiliaryWindowInteraction();
+    void endAuxiliaryWindowInteraction();
     void activateRecognitionMode(int mode, bool showToolbar = true);
     void ensureRecognitionProviders();
     void deactivateRecognition();
@@ -620,6 +625,8 @@ class ScreenshotPinnedWindow final : public QWidget {
     bool m_preserveScaleForSettledGeometry = false;
     bool m_presented = false;
     bool m_closing = false;
+    std::optional<snow_shot::storage::PinnedWindowRecord> m_closeSnapshot;
+    bool m_closeStatePersisted = false;
     bool m_deferredInactiveGroupClose = false;
     bool m_inactiveGroupClosing = false;
     QString m_persistenceId;
@@ -631,6 +638,7 @@ class ScreenshotPinnedWindow final : public QWidget {
     QTimer* m_persistenceTimer = nullptr;
     bool m_systemSizingActive = false;
     bool m_windowDragActive = false;
+    bool m_auxiliaryWindowInteractionActive = false;
     bool m_windowDragCursorSet = false;
     QPointer<QScreen> m_clickThroughScreen;
     QMetaObject::Connection m_clickThroughScreenGeometryConnection;
@@ -641,6 +649,7 @@ class ScreenshotPinnedWindow final : public QWidget {
     bool m_windowActive = false;
     bool m_fileDragActive = false;
     bool m_passiveGeometryReconciliationActive = false;
+    bool m_forwardingNativeExposeEvent = false;
 };
 
 #endif // SNOW_SHOT_PRESENTATION_SCREENSHOTPINNEDWINDOW_H

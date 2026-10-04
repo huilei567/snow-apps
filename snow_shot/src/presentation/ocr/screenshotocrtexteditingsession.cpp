@@ -44,8 +44,10 @@ bool ScreenshotOcrTextEditingSession::reset() {
 }
 
 bool ScreenshotOcrTextEditingSession::applyInitialTransforms(const QString& formatting,
-                                                             const QString& punctuation) {
-    m_formatting = formatting == QStringLiteral("keep") || formatting == QStringLiteral("remove")
+                                                             const QString& punctuation,
+                                                             const QString& smartText) {
+    m_formatting = formatting == QStringLiteral("keep") || formatting == QStringLiteral("remove") ||
+                           formatting == QStringLiteral("smart")
                        ? formatting
                        : QString{};
     m_punctuation = punctuation == QStringLiteral("half") || punctuation == QStringLiteral("full")
@@ -56,12 +58,15 @@ bool ScreenshotOcrTextEditingSession::applyInitialTransforms(const QString& form
         return false;
     }
     m_transformBaseline = text();
+    m_smartText = smartText;
     return replaceText(transformedText());
 }
 
-bool ScreenshotOcrTextEditingSession::setFormatting(const QString& value) {
+bool ScreenshotOcrTextEditingSession::setFormatting(const QString& value,
+                                                    const QString& smartText) {
     QString normalized;
-    if (value == QStringLiteral("keep") || value == QStringLiteral("remove")) {
+    if (value == QStringLiteral("keep") || value == QStringLiteral("remove") ||
+        value == QStringLiteral("smart")) {
         normalized = value;
     }
     if (normalized == m_formatting) {
@@ -71,6 +76,9 @@ bool ScreenshotOcrTextEditingSession::setFormatting(const QString& value) {
         m_transformBaseline = text();
     }
     m_formatting = normalized;
+    if (normalized == QStringLiteral("smart")) {
+        m_smartText = smartText;
+    }
     const bool changed = replaceText(transformedText());
     if (m_formatting.isEmpty() && m_punctuation.isEmpty()) {
         m_transformBaseline.clear();
@@ -99,6 +107,7 @@ bool ScreenshotOcrTextEditingSession::setPunctuation(const QString& value) {
 
 void ScreenshotOcrTextEditingSession::clearTransforms() {
     m_transformBaseline.clear();
+    m_smartText.clear();
     m_formatting.clear();
     m_punctuation.clear();
 }
@@ -151,8 +160,9 @@ void ScreenshotOcrTextEditingSession::applyText(const QString& text) {
 }
 
 QString ScreenshotOcrTextEditingSession::transformedText() const {
-    return snow_shot::presentation::applyOcrTextTransforms(m_transformBaseline, m_formatting,
-                                                           m_punctuation);
+    return snow_shot::presentation::applyOcrTextTransforms(
+        m_formatting == QStringLiteral("smart") ? m_smartText : m_transformBaseline, m_formatting,
+        m_punctuation);
 }
 
 void ScreenshotOcrTextEditingSession::undo() {

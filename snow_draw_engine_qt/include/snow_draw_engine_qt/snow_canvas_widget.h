@@ -17,6 +17,7 @@
 #include "snow_draw_engine_qt/snow_canvas_types.h"
 
 class QCursor;
+class QRegion;
 class QEnterEvent;
 class QEvent;
 class QFocusEvent;
@@ -70,6 +71,15 @@ class SnowCanvasWidget : public QWidget {
     bool setCanvasShapeStylePatch(const SnowCanvasShapeStyle& style, quint32 properties,
                                   SnowCanvasShapeKind kind);
     bool setCanvasFilterStyle(const SnowCanvasFilterStyle& style, quint32 properties);
+    // Updates shared creation defaults for RectangleFilter or PenFilter without
+    // changing this widget's active tool, selection, or existing elements.
+    // Strength remains shared by both filter families.
+    bool setCanvasFilterCreationStyle(const SnowCanvasFilterStyle& style, quint32 properties,
+                                      SnowCanvasTool filterTool);
+    // Changes only future brush erasers, preserving selection, tool and history.
+    bool setCanvasBrushEraserCreationStyle(
+        const SnowCanvasBrushEraserStyle& style,
+        quint32 properties = SnowCanvasBrushEraserStylePropertyStrokeWidth);
     bool setCanvasTextStyle(const SnowCanvasTextStyle& style,
                             quint32 properties = SnowCanvasTextStyleAllProperties);
     bool setCanvasSerialNumberStyle(const SnowCanvasSerialNumberStyle& style);
@@ -82,6 +92,7 @@ class SnowCanvasWidget : public QWidget {
 
     SnowCanvasSnapConfig canvasSnapConfig() const;
     bool setCanvasSnapConfig(const SnowCanvasSnapConfig& config);
+    bool setCanvasSnapGuideTargets(const SnowCanvasSnapGuideTargets& targets);
 
     SnowCanvasGridConfig canvasGridConfig() const;
     bool setCanvasGridConfig(const SnowCanvasGridConfig& config);
@@ -154,6 +165,8 @@ class SnowCanvasWidget : public QWidget {
     SnowCanvasCustomRenderer* customRenderer() const;
     void setCustomRenderer(SnowCanvasCustomRenderer* renderer);
     void setBaseImageSources(const QList<SnowCanvasBaseImageSource>& sources);
+    void setBaseImageSources(const QList<SnowCanvasBaseImageSource>& sources,
+                             const QRegion& damage);
     [[nodiscard]] QTransform canvasToViewTransform() const;
     QRect viewRectForCanvasRect(const QRectF& canvasRect, int paddingPx = 0) const;
 

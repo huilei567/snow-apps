@@ -1,9 +1,14 @@
 use crate::codec::*;
+#[cfg(test)]
+use crate::config::ExportExecutionMode;
+use crate::decoder::*;
 use crate::resize::{NearestResizePlan, resize_rgba_fast_into};
 use snow_core::cancellation::CancellationToken;
+use snow_memory::RasterBuffer;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::ffi::OsString;
+#[cfg(test)]
 use std::ffi::c_void;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
@@ -25,8 +30,8 @@ use snow_recording_model::{
 };
 
 use crate::config::{
-    ExportAudioTrackRequest, ExportExecutionMode, ExportFormat, ExportPerformanceConfig,
-    ExportRequest, MouseEditConfig, VideoCodec, VideoEncodeConfig, VideoEncodingSpeed,
+    ExportAudioTrackRequest, ExportFormat, ExportPerformanceConfig, ExportRequest, MouseEditConfig,
+    VideoCodec, VideoEncodeConfig, VideoEncodingSpeed,
 };
 use crate::error::{RecordingExportError as ScreenRecorderError, Result};
 use crate::export::{
@@ -561,9 +566,9 @@ impl EditingSession {
         // Cache the resized base frame so repeated source indices avoid redundant scaling.
         let mut resized_cache_key = None::<(usize, u32, u32)>;
         let mut resized_cache = if needs_resize {
-            vec![0u8; output_len]
+            RasterBuffer::zeroed(output_len)
         } else {
-            Vec::new()
+            RasterBuffer::new()
         };
 
         let telemetry = match export_video_generated(
@@ -754,301 +759,6 @@ fn probe_intermediate_video_dimensions(
     let width = decoder.width().max(1);
     let height = decoder.height().max(1);
     (width, height)
-}
-
-#[inline]
-fn hardware_video_decode_allowed(mode: ExportExecutionMode) -> bool {
-    matches!(
-        mode,
-        ExportExecutionMode::HardwarePreferred | ExportExecutionMode::HardwareOnly
-    )
-}
-
-struct HardwareDecodeSelection {
-    hw_pix_fmt: ffmpeg::ffi::AVPixelFormat,
-}
-
-struct HardwareDecodeState {
-    device_ctx: *mut ffmpeg::ffi::AVBufferRef,
-    _selection: Box<HardwareDecodeSelection>,
-    hw_pixel_format: ffmpeg::format::Pixel,
-    device_name: &'static str,
-}
-
-impl Drop for HardwareDecodeState {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.device_ctx.is_null() {
-                ffmpeg::ffi::av_buffer_unref(&mut self.device_ctx);
-            }
-        }
-    }
-}
-
-struct SourceVideoDecoder<Decoder = ffmpeg::decoder::Video> {
-    // Fields drop in declaration order. Codec shutdown joins decoding threads
-    // before the hardware state's selection, referenced by AVCodecContext::opaque,
-    // can be released.
-    decoder: Decoder,
-    hardware: Option<HardwareDecodeState>,
-}
-
-fn prepare_hardware_decoder_context(
-    mut hardware: HardwareDecodeState,
-    perf_config: &ExportPerformanceConfig,
-    create_context: impl FnOnce() -> std::result::Result<ffmpeg::codec::context::Context, ffmpeg::Error>,
-) -> Result<SourceVideoDecoder<ffmpeg::codec::context::Context>> {
-    // Own the device before any fallible decoder setup. Both context creation and
-    // codec opening can fail after native hardware resources have been allocated.
-    let mut context = create_context().map_err(|err| {
-        ScreenRecorderError::Export(format!(
-            "failed to create source video decoder context: {err}"
-        ))
-    })?;
-    configure_codec_threads(
-        &mut context,
-        perf_config.decode_threads,
-        ffmpeg::codec::threading::Type::Frame,
-    );
-    unsafe {
-        let device_ref = ffmpeg::ffi::av_buffer_ref(hardware.device_ctx);
-        if device_ref.is_null() {
-            return Err(ScreenRecorderError::Export(
-                "failed to retain source video decoder device".into(),
-            ));
-        }
-        let codec_ctx = context.as_mut_ptr();
-        (*codec_ctx).get_format = Some(select_hardware_decoder_pixel_format);
-        (*codec_ctx).opaque =
-            hardware._selection.as_mut() as *mut HardwareDecodeSelection as *mut c_void;
-        (*codec_ctx).hw_device_ctx = device_ref;
-    }
-    Ok(SourceVideoDecoder {
-        decoder: context,
-        hardware: Some(hardware),
-    })
-}
-
-unsafe extern "C" fn select_hardware_decoder_pixel_format(
-    codec_ctx: *mut ffmpeg::ffi::AVCodecContext,
-    pixel_formats: *const ffmpeg::ffi::AVPixelFormat,
-) -> ffmpeg::ffi::AVPixelFormat {
-    if codec_ctx.is_null() || pixel_formats.is_null() {
-        return ffmpeg::ffi::AVPixelFormat::AV_PIX_FMT_NONE;
-    }
-
-    let selection = unsafe { (*codec_ctx).opaque as *const HardwareDecodeSelection };
-    if !selection.is_null() {
-        let wanted = unsafe { (*selection).hw_pix_fmt };
-        let mut current = pixel_formats;
-        loop {
-            let pixel_format = unsafe { *current };
-            if pixel_format == ffmpeg::ffi::AVPixelFormat::AV_PIX_FMT_NONE {
-                break;
-            }
-            if pixel_format == wanted {
-                return wanted;
-            }
-            current = unsafe { current.add(1) };
-        }
-    }
-
-    unsafe { ffmpeg::ffi::avcodec_default_get_format(codec_ctx, pixel_formats) }
-}
-
-fn preferred_hardware_decode_device_types() -> &'static [(ffmpeg::ffi::AVHWDeviceType, &'static str)]
-{
-    #[cfg(target_os = "windows")]
-    {
-        &[
-            (
-                ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D11VA,
-                "d3d11va",
-            ),
-            (ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DXVA2, "dxva2"),
-            (ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV, "qsv"),
-        ]
-    }
-    #[cfg(target_os = "macos")]
-    {
-        &[(
-            ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
-            "videotoolbox",
-        )]
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        &[
-            (ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI, "vaapi"),
-            (ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV, "qsv"),
-            (ffmpeg::ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA, "cuda"),
-        ]
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos", unix)))]
-    {
-        &[]
-    }
-}
-
-fn find_hardware_decoder_pixel_format(
-    codec: ffmpeg::Codec,
-    device_type: ffmpeg::ffi::AVHWDeviceType,
-) -> Option<ffmpeg::ffi::AVPixelFormat> {
-    let mut index = 0;
-    loop {
-        let config = unsafe { ffmpeg::ffi::avcodec_get_hw_config(codec.as_ptr(), index) };
-        if config.is_null() {
-            return None;
-        }
-
-        let config_ref = unsafe { &*config };
-        let supports_device_ctx =
-            (config_ref.methods & ffmpeg::ffi::AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX as i32) != 0;
-        if supports_device_ctx && config_ref.device_type == device_type {
-            return Some(config_ref.pix_fmt);
-        }
-
-        index += 1;
-    }
-}
-
-fn try_open_hardware_video_decoder(
-    parameters: &ffmpeg::codec::Parameters,
-    perf_config: &ExportPerformanceConfig,
-) -> Result<Option<SourceVideoDecoder>> {
-    if !hardware_video_decode_allowed(perf_config.mode) {
-        return Ok(None);
-    }
-
-    let Some(codec) = ffmpeg::codec::decoder::find(parameters.id()) else {
-        return Ok(None);
-    };
-
-    for (device_type, device_name) in preferred_hardware_decode_device_types() {
-        let Some(hw_pix_fmt) = find_hardware_decoder_pixel_format(codec, *device_type) else {
-            continue;
-        };
-
-        let mut hardware = HardwareDecodeState {
-            device_ctx: ptr::null_mut(),
-            _selection: Box::new(HardwareDecodeSelection { hw_pix_fmt }),
-            hw_pixel_format: ffmpeg::format::Pixel::from(hw_pix_fmt),
-            device_name,
-        };
-        let create_status = unsafe {
-            ffmpeg::ffi::av_hwdevice_ctx_create(
-                &mut hardware.device_ctx,
-                *device_type,
-                ptr::null(),
-                ptr::null_mut(),
-                0,
-            )
-        };
-        if create_status < 0 || hardware.device_ctx.is_null() {
-            continue;
-        }
-
-        let SourceVideoDecoder {
-            decoder: decode_context,
-            hardware,
-        } = prepare_hardware_decoder_context(hardware, perf_config, || {
-            ffmpeg::codec::context::Context::from_parameters(parameters.clone())
-        })?;
-
-        let decoder = match decode_context
-            .decoder()
-            .open_as(codec)
-            .and_then(|opened| opened.video())
-        {
-            Ok(decoder) => decoder,
-            Err(_) => continue,
-        };
-
-        return Ok(Some(SourceVideoDecoder { decoder, hardware }));
-    }
-
-    Ok(None)
-}
-
-fn open_source_video_decoder(
-    parameters: &ffmpeg::codec::Parameters,
-    perf_config: &ExportPerformanceConfig,
-    allow_hardware_decode: bool,
-) -> Result<SourceVideoDecoder> {
-    if allow_hardware_decode
-        && let Some(decoder) = try_open_hardware_video_decoder(parameters, perf_config)?
-    {
-        return Ok(decoder);
-    }
-
-    let mut decode_context = ffmpeg::codec::context::Context::from_parameters(parameters.clone())
-        .map_err(|err| {
-        ScreenRecorderError::Export(format!(
-            "failed to create source video decoder context: {err}"
-        ))
-    })?;
-    configure_codec_threads(
-        &mut decode_context,
-        perf_config.decode_threads,
-        ffmpeg::codec::threading::Type::Frame,
-    );
-    let decoder = decode_context.decoder().video().map_err(|err| {
-        ScreenRecorderError::Export(format!("failed to open source video decoder: {err}"))
-    })?;
-    Ok(SourceVideoDecoder {
-        decoder,
-        hardware: None,
-    })
-}
-
-fn decoder_software_output_format(
-    decoder: &ffmpeg::decoder::Video,
-    hw_state: Option<&HardwareDecodeState>,
-) -> ffmpeg::format::Pixel {
-    if hw_state.is_some() {
-        let sw_format = unsafe { ffmpeg::format::Pixel::from((*decoder.as_ptr()).sw_pix_fmt) };
-        if sw_format != ffmpeg::format::Pixel::None {
-            return sw_format;
-        }
-    }
-
-    decoder.format()
-}
-
-fn normalize_decoded_video_frame<'a>(
-    decoded: &'a mut ffmpeg::frame::Video,
-    transferred: &'a mut ffmpeg::frame::Video,
-    hw_state: Option<&HardwareDecodeState>,
-) -> Result<&'a mut ffmpeg::frame::Video> {
-    let Some(hw_state) = hw_state else {
-        return Ok(decoded);
-    };
-    if decoded.format() != hw_state.hw_pixel_format {
-        return Ok(decoded);
-    }
-
-    unsafe {
-        ffmpeg::ffi::av_frame_unref(transferred.as_mut_ptr());
-        let transfer_status =
-            ffmpeg::ffi::av_hwframe_transfer_data(transferred.as_mut_ptr(), decoded.as_ptr(), 0);
-        if transfer_status < 0 {
-            return Err(ScreenRecorderError::Export(format!(
-                "failed to transfer hardware-decoded video frame to system memory: {}",
-                ffmpeg::Error::from(transfer_status)
-            )));
-        }
-
-        let copy_props_status =
-            ffmpeg::ffi::av_frame_copy_props(transferred.as_mut_ptr(), decoded.as_ptr());
-        if copy_props_status < 0 {
-            return Err(ScreenRecorderError::Export(format!(
-                "failed to copy hardware-decoded video frame properties: {}",
-                ffmpeg::Error::from(copy_props_status)
-            )));
-        }
-    }
-
-    Ok(transferred)
 }
 
 fn video_index_duration_ms(index: &[VideoIndexEntry]) -> u64 {
@@ -1391,7 +1101,7 @@ impl DecodeWorkerControl {
 
 struct StreamingVideoFrameSource {
     rx: Option<Receiver<DecodedFrameMessage>>,
-    recycle_tx: Sender<Vec<u8>>,
+    recycle_tx: Sender<RasterBuffer>,
     current_index: Option<usize>,
     current_frame: Option<StoredFrame>,
     control: DecodeWorkerControl,
@@ -1411,7 +1121,7 @@ impl StreamingVideoFrameSource {
         let (tx, rx) = crossbeam_channel::bounded(depth);
         let (recycle_tx, recycle_rx) = crossbeam_channel::bounded(depth);
         for _ in 0..depth {
-            let _ = recycle_tx.try_send(Vec::new());
+            let _ = recycle_tx.try_send(RasterBuffer::new());
         }
         let path = video_path.to_path_buf();
         let control = DecodeWorkerControl::new(cancel_flag);
@@ -1504,7 +1214,7 @@ fn decode_video_stream_worker(
     decode_threads: u8,
     control: DecodeWorkerControl,
     tx: crossbeam_channel::Sender<DecodedFrameMessage>,
-    recycle_rx: crossbeam_channel::Receiver<Vec<u8>>,
+    recycle_rx: crossbeam_channel::Receiver<RasterBuffer>,
 ) {
     let result = (|| -> Result<()> {
         control.check_canceled()?;
@@ -1691,7 +1401,7 @@ fn decoded_to_stored_frame(
     scaler: &mut Option<ffmpeg::software::scaling::Context>,
     rgba_frame: &mut Option<ffmpeg::frame::Video>,
     last_timestamp_ms: &mut Option<u64>,
-    recycle_rx: &crossbeam_channel::Receiver<Vec<u8>>,
+    recycle_rx: &crossbeam_channel::Receiver<RasterBuffer>,
 ) -> Result<StoredFrame> {
     let width = decoded.width();
     let height = decoded.height();
@@ -1961,7 +1671,7 @@ fn prepare_overlay_base_rgba(
     resize_plan: Option<&NearestResizePlan>,
     process_pool: Option<&rayon::ThreadPool>,
     resized_cache_key: &mut Option<(usize, u32, u32)>,
-    resized_cache: &mut Vec<u8>,
+    resized_cache: &mut RasterBuffer,
     output_rgba: &mut [u8],
 ) {
     if source.width == output_w && source.height == output_h {
@@ -2837,7 +2547,8 @@ fn compile_trail_segments(
     let width_usize = width as usize;
     let height_i32 = height.min(i32::MAX as u32) as i32;
     let width_i32 = width.min(i32::MAX as u32) as i32;
-    let mut latest_ts_keys = vec![0u32; width as usize * height as usize];
+    let mut latest_ts_keys =
+        snow_memory::RasterArray::<u32>::zeroed(width as usize * height as usize);
 
     for pair in smoothed.windows(2) {
         let a = pair[0];
@@ -5531,14 +5242,14 @@ where
         progress_tx,
     )?;
     let rgba_len = width as usize * height as usize * 4;
-    let mut rgba = vec![0u8; rgba_len];
+    let mut rgba = RasterBuffer::zeroed(rgba_len);
     for index in 0..frame_count {
         check_canceled(cancel_flag)?;
         rgba.resize(rgba_len, 0);
         rgba_provider(index, &mut rgba)?;
         rgba = encoder
             .encoder
-            .push_owned_rgba_frame_at_pts(index as u64, rgba)?;
+            .push_raster_rgba_frame_at_pts(index as u64, rgba)?;
         encoder.pump_audio(index.saturating_add(1))?;
         encoder.progress(index.saturating_add(1));
     }
@@ -6006,11 +5717,11 @@ fn export_video_generated_from_source_with_overlay(
     let rgba_len = rgba_row_bytes * height as usize;
     let rgba_stride = rgba_frame.stride(0);
     let can_write_direct_rgba = rgba_stride == rgba_row_bytes;
-    let mut base_rgba = vec![0u8; rgba_len];
+    let mut base_rgba = RasterBuffer::zeroed(rgba_len);
     let mut generated_rgba = if can_write_direct_rgba {
-        Vec::new()
+        RasterBuffer::new()
     } else {
-        vec![0u8; rgba_len]
+        RasterBuffer::zeroed(rgba_len)
     };
     let mut overlay_state = OverlaySearchState::default();
     let mut decode_rgba_scaler = None::<ffmpeg::software::scaling::Context>;
@@ -6791,7 +6502,7 @@ mod tests {
                     duration_ms: 33,
                     width: 2,
                     height: 2,
-                    rgba: vec![0x40; 16],
+                    rgba: vec![0x40; 16].into(),
                 },
             })
             .unwrap();
@@ -6870,7 +6581,7 @@ mod tests {
                     duration_ms: 33,
                     width: 2,
                     height: 2,
-                    rgba: vec![0x40; 16],
+                    rgba: vec![0x40; 16].into(),
                 },
             })
             .unwrap();
@@ -7662,18 +7373,18 @@ mod tests {
             duration_ms: 16,
             width: 1,
             height: 1,
-            rgba: vec![10, 20, 30, 255],
+            rgba: vec![10, 20, 30, 255].into(),
         };
         let changed = StoredFrame {
             timestamp_ms: 1,
             duration_ms: 16,
             width: 1,
             height: 1,
-            rgba: vec![220, 210, 200, 255],
+            rgba: vec![220, 210, 200, 255].into(),
         };
         let plan = NearestResizePlan::new(1, 1, 2, 2);
         let mut cache_key = None::<(usize, u32, u32)>;
-        let mut cache = Vec::<u8>::new();
+        let mut cache = RasterBuffer::new();
         let mut output = vec![0u8; 2 * 2 * 4];
 
         prepare_overlay_base_rgba(
@@ -7710,18 +7421,18 @@ mod tests {
             duration_ms: 16,
             width: 1,
             height: 1,
-            rgba: vec![5, 6, 7, 255],
+            rgba: vec![5, 6, 7, 255].into(),
         };
         let second_source = StoredFrame {
             timestamp_ms: 1,
             duration_ms: 16,
             width: 1,
             height: 1,
-            rgba: vec![50, 60, 70, 255],
+            rgba: vec![50, 60, 70, 255].into(),
         };
         let plan = NearestResizePlan::new(1, 1, 2, 2);
         let mut cache_key = None::<(usize, u32, u32)>;
-        let mut cache = Vec::<u8>::new();
+        let mut cache = RasterBuffer::new();
         let mut output = vec![0u8; 2 * 2 * 4];
 
         prepare_overlay_base_rgba(
@@ -8231,7 +7942,7 @@ mod tests {
             duration_ms: 16,
             width: 4,
             height: 4,
-            rgba: vec![0; 4 * 4 * 4],
+            rgba: vec![0; 4 * 4 * 4].into(),
         };
         let store = MouseStore {
             cursor_shapes: vec![CursorShapeRecord {
@@ -8276,7 +7987,7 @@ mod tests {
             duration_ms: 16,
             width: 16,
             height: 16,
-            rgba: vec![0; 16 * 16 * 4],
+            rgba: vec![0; 16 * 16 * 4].into(),
         };
         let store = MouseStore {
             cursor_shapes: vec![CursorShapeRecord {
@@ -8328,7 +8039,8 @@ mod tests {
             rgba: vec![
                 10, 20, 30, 255, 20, 40, 60, 255, 100, 120, 140, 255, 0, 0, 0, 255, // row 1
                 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255,
-            ],
+            ]
+            .into(),
         };
         let store = MouseStore {
             cursor_shapes: vec![CursorShapeRecord {
@@ -8378,7 +8090,7 @@ mod tests {
             duration_ms: 16,
             width: 16,
             height: 16,
-            rgba: vec![0; 16 * 16 * 4],
+            rgba: vec![0; 16 * 16 * 4].into(),
         };
         let store = MouseStore {
             cursor_shapes: vec![CursorShapeRecord {
@@ -8425,7 +8137,7 @@ mod tests {
             duration_ms: 16,
             width: 32,
             height: 32,
-            rgba: vec![0; 32 * 32 * 4],
+            rgba: vec![0; 32 * 32 * 4].into(),
         };
         let store = MouseStore {
             cursor_shapes: vec![],

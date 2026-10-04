@@ -368,17 +368,61 @@ so every moment on screen can be expressed clearly and shared easily.</translati
         </message>
     </context>
     <context>
+        <name>FloatingToolbar</name>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Customize toolbar</source>
+            <translation>Customize toolbar</translation>
+        </message>
+        <message>
+            <source>Delay %1 seconds to execute</source>
+            <translation>Delay %1 seconds to execute</translation>
+        </message>
+        <message>
+            <source>Formula recognition</source>
+            <translation>Formula recognition</translation>
+        </message>
+        <message>
+            <source>Hide during screenshots</source>
+            <translation>Hide during screenshots</translation>
+        </message>
+        <message>
+            <source>Hide in fullscreen</source>
+            <translation>Hide in fullscreen</translation>
+        </message>
+        <message>
+            <source>Icon mode</source>
+            <translation>Icon mode</translation>
+        </message>
+        <message>
+            <source>More tools</source>
+            <translation>More tools</translation>
+        </message>
+        <message>
+            <source>QR code recognition</source>
+            <translation>QR code recognition</translation>
+        </message>
+        <message>
+            <source>Screen recording</source>
+            <translation>Screen recording</translation>
+        </message>
+        <message>
+            <source>Screenshot</source>
+            <translation>Screenshot</translation>
+        </message>
+        <message>
+            <source>Toolbar mode</source>
+            <translation>Toolbar mode</translation>
+        </message>
+    </context>
+    <context>
         <name>LanguageCatalog</name>
         <message>
             <source>Language name</source>
             <translation>English</translation>
-        </message>
-    </context>
-    <context>
-        <name>MainContentHeaderWidget</name>
-        <message>
-            <source>Search settings and functions</source>
-            <translation>Search settings and functions</translation>
         </message>
     </context>
     <context>
@@ -406,10 +450,6 @@ so every moment on screen can be expressed clearly and shared easily.</translati
             <translation>%1 cannot be registered as a global shortcut, try another key</translation>
         </message>
         <message>
-            <source>%1 cannot be used as a drawing shortcut, try another key</source>
-            <translation>%1 cannot be used as a drawing shortcut, try another key</translation>
-        </message>
-        <message>
             <source>%1 cannot be used as a pinned window shortcut, try another key</source>
             <translation>%1 cannot be used as a pinned window shortcut, try another key</translation>
         </message>
@@ -422,8 +462,12 @@ so every moment on screen can be expressed clearly and shared easily.</translati
             <translation>%1 cannot be used as a screenshot shortcut, try another key</translation>
         </message>
         <message>
-            <source>%1 is already assigned to another drawing tool, try another key</source>
-            <translation>%1 is already assigned to another drawing tool, try another key</translation>
+            <source>%1 cannot be used as an annotation shortcut, try another key</source>
+            <translation>%1 cannot be used as an annotation shortcut, try another key</translation>
+        </message>
+        <message>
+            <source>%1 is already assigned to another annotation tool, try another key</source>
+            <translation>%1 is already assigned to another annotation tool, try another key</translation>
         </message>
         <message>
             <source>%1 is already assigned to another pinned window action, try another key</source>
@@ -446,8 +490,8 @@ so every moment on screen can be expressed clearly and shared easily.</translati
             <translation>Global shortcuts are not supported on this platform</translation>
         </message>
         <message>
-            <source>Invalid drawing shortcut</source>
-            <translation>Invalid drawing shortcut</translation>
+            <source>Invalid annotation shortcut</source>
+            <translation>Invalid annotation shortcut</translation>
         </message>
         <message>
             <source>Invalid global shortcut</source>
@@ -474,10 +518,6 @@ so every moment on screen can be expressed clearly and shared easily.</translati
             <translation>This key cannot be registered as a global shortcut, try another key</translation>
         </message>
         <message>
-            <source>This key cannot be used as a drawing shortcut, try another key</source>
-            <translation>This key cannot be used as a drawing shortcut, try another key</translation>
-        </message>
-        <message>
             <source>This key cannot be used as a pinned window shortcut, try another key</source>
             <translation>This key cannot be used as a pinned window shortcut, try another key</translation>
         </message>
@@ -490,8 +530,12 @@ so every moment on screen can be expressed clearly and shared easily.</translati
             <translation>This key cannot be used as a screenshot shortcut, try another key</translation>
         </message>
         <message>
-            <source>This key is already assigned to another drawing tool, try another key</source>
-            <translation>This key is already assigned to another drawing tool, try another key</translation>
+            <source>This key cannot be used as an annotation shortcut, try another key</source>
+            <translation>This key cannot be used as an annotation shortcut, try another key</translation>
+        </message>
+        <message>
+            <source>This key is already assigned to another annotation tool, try another key</source>
+            <translation>This key is already assigned to another annotation tool, try another key</translation>
         </message>
         <message>
             <source>This key is already assigned to another pinned window action, try another key</source>
@@ -512,6 +556,14 @@ so every moment on screen can be expressed clearly and shared easily.</translati
     </context>
     <context>
         <name>SectionHeaderWidget</name>
+        <message>
+            <source>Collapse %1</source>
+            <translation>Collapse %1</translation>
+        </message>
+        <message>
+            <source>Expand %1</source>
+            <translation>Expand %1</translation>
+        </message>
         <message>
             <source>Refresh</source>
             <translation>Refresh</translation>
@@ -534,6 +586,10 @@ so every moment on screen can be expressed clearly and shared easily.</translati
         <message>
             <source>Expand navigation</source>
             <translation>Expand navigation</translation>
+        </message>
+        <message>
+            <source>Search Function</source>
+            <translation>Search Function</translation>
         </message>
     </context>
     <context>

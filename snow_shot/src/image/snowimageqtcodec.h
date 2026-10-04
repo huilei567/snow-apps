@@ -14,8 +14,27 @@
 #include <optional>
 
 class QIODevice;
+class QImageReader;
 
 namespace snow_shot::image_codec {
+
+enum class SkinDecodeError {
+    None,
+    UnsupportedFormat,
+    UnreadableFile,
+    InputTooLarge,
+    InvalidImage,
+    ResourceLimit,
+};
+
+struct SkinDecodeResult final {
+    QImage image;
+    SkinDecodeError error = SkinDecodeError::None;
+};
+
+// Decodes one static preview, including the first composited animation frame.
+// Skin decoding has independent resource limits and never uses Qt image plugins.
+[[nodiscard]] SkinDecodeResult decodeSkinFile(const QString& path);
 
 struct EncodeResult final {
     quint64 bytesWritten = 0;
@@ -50,6 +69,9 @@ struct EncodeResult final {
 // rendering/encoding boundary; merely assigning an sRGB tag changes their meaning.
 [[nodiscard]] QImage decode(const QByteArray& encoded, snow::image::Format expectedFormat,
                             const char* nameHint);
+// Retains Qt's decoding, metadata and transformation behavior while putting
+// the returned raster in managed storage. Compatible readers decode in place.
+[[nodiscard]] QImage readManagedImage(QImageReader& reader);
 [[nodiscard]] QImage decodeIconFile(const QString& path, uint32_t preferredExtent);
 [[nodiscard]] QSize inspectSize(const QByteArray& encoded, snow::image::Format expectedFormat);
 [[nodiscard]] QImage decodeFile(const QString& path, snow::image::Format expectedFormat);

@@ -10,6 +10,7 @@ bench-timing = []
 bench-experiments = []
 
 [dependencies]
+snow-memory = { path = "../snow-memory" }
 snow-core = { path = "../snow-core" }
 snow-audio-recorder = { path = "../snow-audio-recorder" }
 snow-recording-model = { path = "../snow-recording-model" }
@@ -28,7 +29,7 @@ snow-media = { path = "../snow-media" }
 
 [target.'cfg(windows)'.dependencies]
 snow-d3d11 = { path = "../snow-d3d11" }
-windows = { workspace = true, features = ["Win32_Graphics_Direct3D11"] }
+windows = { workspace = true, features = ["Win32_Graphics_Direct3D11", "Win32_Media_Audio", "Win32_System_Com"] }
 
 [dev-dependencies]
 gif = "0.14.2"

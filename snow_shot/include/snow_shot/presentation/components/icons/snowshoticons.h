@@ -21,6 +21,11 @@ namespace brand {
 [[nodiscard]] adqt::icons::IconRef SnowShotMiniLogo(const adqt::icons::IconColors& colors = {});
 } // namespace brand
 
+namespace cursor {
+[[nodiscard]] adqt::icons::IconRef
+SelectionShadowCursor(const adqt::icons::IconColors& colors = {});
+} // namespace cursor
+
 namespace outlined {
 [[nodiscard]] adqt::icons::IconRef AlignBottom(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef
@@ -90,6 +95,8 @@ ArrowheadTriangleStart(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef DistributeHorizontal(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef DistributeVertical(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef Duplicate(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef EraserTypeBrush(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef EraserTypeRectangle(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef Exit(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef ExportConfiguration(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef ExportSettings(const adqt::icons::IconColors& colors = {});
@@ -136,9 +143,11 @@ RecordingPostProcessing(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef RecordingRender(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef
 RecordingRenderSettings(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef RecordingReplay(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef RecordingResume(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef RecordingStart(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef RecordingStop(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef RecordingTrim(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef RefreshCapture(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef Restart(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef Save(const adqt::icons::IconColors& colors = {});
@@ -167,6 +176,16 @@ ScreenshotRegionReduce(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef SelectionRadius(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef SelectionShadow(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef SequenceNumberCircle(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef
+SequenceNumberNumericArabic(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef
+SequenceNumberNumericChinese(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef
+SequenceNumberNumericLowercaseLetters(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef
+SequenceNumberNumericRoman(const adqt::icons::IconColors& colors = {});
+[[nodiscard]] adqt::icons::IconRef
+SequenceNumberNumericUppercaseLetters(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef
 SequenceNumberOutlinedCircle(const adqt::icons::IconColors& colors = {});
 [[nodiscard]] adqt::icons::IconRef

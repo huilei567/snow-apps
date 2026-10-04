@@ -1,7 +1,10 @@
 #include "physical_key_test_support.h"
 #include "snow_shot/presentation/screenshotregiontypecontrol.h"
 #include "snow_shot/presentation/screenshottoolpalette.h"
+#include "snow_shot/ocrtextoptions.h"
+#include "snow_shot/translation/translationlanguagecatalog.h"
 #include "snow_shot/presentation/screenshotcanvastoolstyles.h"
+#include "snow_shot/presentation/screenshotstylebinding.h"
 #include "snow_shot/presentation/screenshotdefaultstyles.h"
 #include "snow_shot/presentation/screenshottoolbarlayoutmodel.h"
 #include "snow_shot/presentation/components/icons/iconrenderutils.h"
@@ -22,6 +25,7 @@
 #include "theme/theme_manager.h"
 
 #include <QApplication>
+#include <QScopeGuard>
 #include <QAbstractButton>
 #include <QButtonGroup>
 #include <QBoxLayout>
@@ -37,6 +41,7 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QStyle>
 #include <QGridLayout>
 #include <QHash>
 #include <QHelpEvent>
@@ -75,6 +80,7 @@
 #include "widgets/radio_button_group.h"
 #include "widgets/select.h"
 #include "widgets/slider.h"
+#include "widgets/switch.h"
 #include "widgets/tooltip.h"
 
 #include <tuple>
@@ -318,7 +324,7 @@ void recordingControlsRemainLaidOutAcrossStateChanges() {
                                 idle && !busy,
                                 !busy,
                                 true,
-                                !busy,
+                                true,
                                 !idle && !busy};
         // Only the initiating start, stop, or copy action shows a spinner.
         const bool spinning[] = {operation == BusyOp::Starting,
@@ -1608,6 +1614,14 @@ void dynamicToolbarLabelsUseEveryTranslationCatalog() {
     require(filterTypes != nullptr && filterTypes->model() != nullptr,
             "dynamic translation coverage should expose filter options");
 
+    ScreenshotToolPalette::Options cursorOptions;
+    cursorOptions.showMoveTool = true;
+    cursorOptions.showMoveOptionsToolbar = true;
+    ScreenshotToolPalette cursorPalette(cursorOptions);
+    cursorPalette.setActiveTool(ScreenshotToolPalette::Tool::Move);
+    auto* cursorButton = cursorPalette.findChild<adqt::widgets::AdButton*>(
+        QStringLiteral("screenshotCaptureCursorButton"));
+    require(cursorButton != nullptr, "cursor translation action should be present");
     const QStringList objectNames{
         QStringLiteral("screenshotToolbarDragHandle"),
         QStringLiteral("screenRecordingShowKeyboard"),
@@ -1661,6 +1675,20 @@ void dynamicToolbarLabelsUseEveryTranslationCatalog() {
                         controls.at(index)->accessibleName() == expectation.labels.at(index),
                     "dynamic toolbar labels must use the active translation catalog");
         }
+        const QString cursorLabel =
+            QCoreApplication::translate("ScreenshotToolPalette", "Show Cursor");
+        require(cursorLabel != QStringLiteral("Show Cursor") &&
+                    cursorButton->toolTip().startsWith(cursorLabel),
+                "Show Cursor must retranslate with its configurable shortcut");
+        cursorPalette.setCursorAvailable(false);
+        const QString unavailable = QCoreApplication::translate(
+            "ScreenshotToolPalette", "Cursor data is unavailable for this screenshot.");
+        require(cursorButton->toolTip() == unavailable &&
+                    cursorButton->accessibleName() == cursorLabel &&
+                    cursorButton->accessibleDescription() == unavailable &&
+                    !cursorButton->isEnabled(),
+                "unavailable cursor explanation and accessible label must retranslate");
+        cursorPalette.setCursorAvailable(true);
         const QModelIndex embossIndex = filterTypes->model()->index(5, 0);
         require(embossIndex.data(adqt::widgets::AdSelect::DefaultLabelRole).toString() ==
                     expectation.emboss,
@@ -2650,6 +2678,69 @@ void screenshotToolbarUsesCanonicalOrderAndSectionSeparators() {
                 !hasSeparatorBetween(buttons.at(11), buttons.at(12)) &&
                 !hasSeparatorBetween(buttons.at(12), buttons.at(13)),
             "Arrow and Line grouping should not introduce an internal separator");
+}
+
+void groupedToolbarHoverSwitchesWithVisibleTooltips() {
+    adqt::widgets::AdTooltip::installApplicationTooltips();
+    const QPoint previousCursor = QCursor::pos();
+    const auto restoreCursor = qScopeGuard([&]() { QCursor::setPos(previousCursor); });
+    ScreenshotToolPalette::Options options;
+    options.showLineTool = true;
+    options.showHighlightTool = true;
+    options.showSpotlightTool = true;
+    options.enableStyleToolbar = false;
+    ScreenshotToolPalette palette(options);
+    palette.resize(palette.contentSizeHint());
+    palette.move(QApplication::primaryScreen()->availableGeometry().center() -
+                 palette.rect().center());
+    palette.show();
+    palette.activateWindow();
+    QCoreApplication::processEvents();
+    auto* arrow =
+        palette.findChild<adqt::widgets::AdButton*>(QStringLiteral("screenshotArrowLineButton"));
+    auto* highlight =
+        palette.findChild<adqt::widgets::AdButton*>(QStringLiteral("screenshotHighlightButton"));
+    require(arrow && highlight, "hover switching fixture contains neighboring drawing groups");
+    for (auto* trigger : {arrow, highlight, arrow, highlight}) {
+        auto* popover = popoverForTrigger(trigger);
+        require(popover, "each drawing group has a hover popover");
+        const QPoint center = trigger->rect().center();
+        const QPoint global = trigger->mapToGlobal(center);
+        QCursor::setPos(global);
+        QEventLoop opening;
+        QObject::connect(popover, &adqt::widgets::AdPopover::visibleChanged, &opening,
+                         [&opening](bool visible) {
+                             if (visible)
+                                 opening.quit();
+                         });
+        QMouseEvent move(QEvent::MouseMove, center, global, Qt::NoButton, Qt::NoButton,
+                         Qt::NoModifier);
+        QApplication::sendEvent(trigger, &move);
+        QTimer::singleShot(1000, &opening, &QEventLoop::quit);
+        if (!popover->isVisible())
+            opening.exec();
+        require(popover->isVisible() && popover->surfaceWidget()->isVisible(),
+                "visible source tooltips must allow hovering directly to a neighboring group");
+        auto* sibling = popoverForTrigger(trigger == arrow ? highlight : arrow);
+        require(sibling && !sibling->isVisible(),
+                "hovering another group dismisses the previous group's popover");
+        QEventLoop tooltipWake;
+        QTimer::singleShot(
+            trigger->style()->styleHint(QStyle::SH_ToolTip_WakeUpDelay, nullptr, trigger),
+            &tooltipWake, &QEventLoop::quit);
+        tooltipWake.exec();
+        QHelpEvent help(QEvent::ToolTip, center, global);
+        QApplication::sendEvent(trigger, &help);
+        bool visible = false;
+        for (auto* tooltip : qApp->findChildren<adqt::widgets::AdTooltip*>()) {
+            visible |= tooltip->isVisible() && tooltip->targetWidget() == trigger &&
+                       tooltip->text() == trigger->toolTip();
+        }
+        require(help.isAccepted() && visible,
+                "the grouped toolbar description follows the newly hovered button");
+    }
+    palette.hide();
+    QCoreApplication::processEvents();
 }
 
 void groupedDrawingOptionsShowShortcutTooltips() {
@@ -5039,6 +5130,142 @@ void scrollingIntervalContentsScaleProportionally() {
     }
 }
 
+void scrollingSettingsUseCenteredFormAndPersistOnAccept() {
+    using namespace adqt::widgets;
+    const snow_shot::storage::ScreenshotSettings settings;
+    const bool original = settings.captureUiInScrollingScreenshot();
+    const auto cleanup = qScopeGuard([&] {
+        static_cast<void>(settings.setCaptureUiInScrollingScreenshot(original));
+        static_cast<void>(snow_shot::presentation::LanguageManager::instance().setLanguage(
+            QStringLiteral("en_US")));
+    });
+    require(settings.setCaptureUiInScrollingScreenshot(false), "seed scrolling UI capture");
+    QWidget owner;
+    owner.setGeometry(40, 60, 640, 480);
+    owner.show();
+    ScreenshotToolPalette::Options options;
+    options.showScrollingScreenshotTool = true;
+    options.showOcrTool = true;
+    ScreenshotToolPalette palette(options);
+    palette.setScrollingSettingsOwnerWindow(&owner);
+    palette.setScrollingScreenshotMode(true);
+    palette.show();
+    QCoreApplication::processEvents();
+    auto* button =
+        palette.findChild<AdButton*>(QStringLiteral("screenshotScrollingSettingsButton"));
+    auto* controls = button ? button->parentWidget() : nullptr;
+    auto* separator =
+        palette.findChild<QFrame*>(QStringLiteral("screenshotScrollingSettingsSeparator"));
+    auto* movement =
+        palette.findChild<AdButton*>(QStringLiteral("screenshotScrollingMoveVerticalButton"));
+    require(button && separator && movement && button->text().isEmpty() &&
+                button->accessibleName() == QStringLiteral("Settings") &&
+                controls->layout()->itemAt(controls->layout()->count() - 1)->widget() == button &&
+                separator->x() - (movement->x() + movement->width()) == 16 &&
+                button->x() - (separator->x() + separator->width()) == 16,
+            "scrolling settings must follow a spaced separator at the far right");
+    const auto findModal = [&] {
+        return palette.findChild<AdModal*>(QStringLiteral("screenshotScrollingSettingsModal"));
+    };
+    const auto flushDeletes = [] {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QCoreApplication::processEvents();
+    };
+    require(findModal() == nullptr, "scrolling settings must be built only when clicked");
+    const auto open = [&] {
+        button->click();
+        QCoreApplication::processEvents();
+        auto* modal = findModal();
+        require(modal && modal->isOpen(), "clicking scrolling settings must open its modal");
+        return modal;
+    };
+    auto* modal = open();
+    auto* form = modal->contentWidget()->findChild<AdForm*>(
+        QStringLiteral("screenshotScrollingSettingsForm"));
+    auto* captureInterface = modal->contentWidget()->findChild<AdSwitch*>(
+        QStringLiteral("screenshotScrollingCaptureInterface"));
+    require(form && captureInterface && !captureInterface->isChecked() &&
+                form->formLayout() == AdForm::FormLayout::Vertical &&
+                form->field(QStringLiteral("captureInterface"))->label() ==
+                    QStringLiteral("Capture interface during scrolling screenshot"),
+            "scrolling settings must expose the persisted option through a form switch");
+    require(captureInterface->controlSize() == AdSwitch::ControlSize::Medium,
+            "scrolling settings must use the generic form's medium-sized switch");
+    form->setDisabled(true);
+    form->setDisabled(false);
+    require(captureInterface->isEnabled() &&
+                captureInterface->controlSize() == AdSwitch::ControlSize::Medium,
+            "form refreshes must preserve the generic switch's size and enabled state");
+    require(modal->mode() == AdModal::Mode::Window && modal->centered() &&
+                modal->windowModality() == Qt::ApplicationModal && modal->ownerWindow() == &owner &&
+                modal->preferredWidth() == 440 && !modal->maskVisible() &&
+                !modal->closeOnMaskClick() &&
+                modal->standardButtons() == (AdModal::StandardButtons(AdModal::StandardButton::Ok) |
+                                             AdModal::StandardButton::Cancel) &&
+                (modal->contentWidget()->window()->frameGeometry().center() -
+                 owner.frameGeometry().center())
+                        .manhattanLength() <= 4,
+            "scrolling settings must match text recognition settings presentation and alignment");
+    require(open() == modal, "repeated settings clicks must reuse the open popup");
+    captureInterface->setChecked(true);
+    require(form->value(QStringLiteral("captureInterface")).toBool() &&
+                !settings.captureUiInScrollingScreenshot(),
+            "switch edits must update the form draft without persisting");
+    modal->rejectButton()->click();
+    flushDeletes();
+    require(findModal() == nullptr && !settings.captureUiInScrollingScreenshot(),
+            "Cancel must discard the draft and release the popup");
+    modal = open();
+    captureInterface = modal->contentWidget()->findChild<AdSwitch*>();
+    require(!captureInterface->isChecked(), "reopening must restore the persisted value");
+    captureInterface->setChecked(true);
+    modal->acceptButton()->click();
+    flushDeletes();
+    require(findModal() == nullptr && settings.captureUiInScrollingScreenshot(),
+            "OK must persist the existing scrolling UI capture setting");
+    modal = open();
+    captureInterface = modal->contentWidget()->findChild<AdSwitch*>();
+    require(captureInterface->isChecked(), "reopening must reflect the accepted value");
+    form = modal->contentWidget()->findChild<AdForm*>();
+    auto& language = snow_shot::presentation::LanguageManager::instance();
+    for (const auto& locale :
+         {QStringLiteral("zh_CN"), QStringLiteral("zh_TW"), QStringLiteral("en_US")}) {
+        require(language.setLanguage(locale), "load scrolling settings language");
+        QCoreApplication::processEvents();
+        const QString label = QCoreApplication::translate(
+            "ScreenshotToolPalette", "Capture interface during scrolling screenshot");
+        require(form->field(QStringLiteral("captureInterface"))->label() == label &&
+                    captureInterface->accessibleName() == label &&
+                    modal->windowTitle() ==
+                        QCoreApplication::translate("ScreenshotToolPalette",
+                                                    "Scrolling screenshot settings"),
+                "open scrolling settings must retranslate its label and title");
+        require(locale == QStringLiteral("en_US") ||
+                    label != QStringLiteral("Capture interface during scrolling screenshot"),
+                "each Chinese catalog must translate the new setting");
+    }
+    const QString snapshotDirectory =
+        qEnvironmentVariable("SNOW_SHOT_SCROLLING_SETTINGS_SNAPSHOT_DIR");
+    if (!snapshotDirectory.isEmpty()) {
+        require(QDir().mkpath(snapshotDirectory) &&
+                    palette.grab().save(QDir(snapshotDirectory).filePath("toolbar.png")) &&
+                    modal->contentWidget()->window()->grab().save(
+                        QDir(snapshotDirectory).filePath("settings.png")),
+                "save scrolling settings visual fixtures");
+    }
+    captureInterface->setChecked(false);
+    palette.setActiveTool(ScreenshotToolPalette::Tool::Ocr);
+    flushDeletes();
+    require(findModal() == nullptr && settings.captureUiInScrollingScreenshot(),
+            "leaving scrolling tools must close settings and discard unapplied edits");
+    palette.setActiveTool(ScreenshotToolPalette::Tool::ScrollingScreenshot);
+    button = palette.findChild<AdButton*>(QStringLiteral("screenshotScrollingSettingsButton"));
+    static_cast<void>(open());
+    palette.clearActiveTool();
+    flushDeletes();
+    require(findModal() == nullptr, "evicting toolbar controls must close scrolling settings");
+}
+
 void scrollingScreenshotExposesAxisRecognitionModes() {
     ScreenshotToolPalette::Options options;
     options.showScrollingScreenshotTool = true;
@@ -5075,7 +5302,7 @@ void scrollingScreenshotExposesAxisRecognitionModes() {
                                  : nullptr;
     require(controls != nullptr &&
                 controls->findChild<adqt::widgets::AdRadioButtonGroup*>() == nullptr &&
-                modeButtons.size() == 6 && verticalButton != nullptr && horizontalButton != nullptr,
+                modeButtons.size() == 7 && verticalButton != nullptr && horizontalButton != nullptr,
             "scrolling screenshot should expose two independent mode buttons");
     auto* autoScroll = controls->findChild<adqt::widgets::AdButton*>(
         QStringLiteral("screenshotScrollingAutoScrollButton"));
@@ -5597,10 +5824,12 @@ void ocrToolReplacesSelectionActionToolbarContents() {
         QStringLiteral("screenshotOcrTextFormattingSelect"));
     auto* punctuationSelect = palette.findChild<adqt::widgets::AdSelect*>(
         QStringLiteral("screenshotOcrTextPunctuationSelect"));
+    auto* targetSelect = palette.findChild<adqt::widgets::AdSelect*>(
+        QStringLiteral("screenshotTranslationQuickTargetLanguageSelect"));
     require(sendToBack == nullptr && edit != nullptr && translate != nullptr && reset != nullptr &&
                 settings != nullptr && undo != nullptr && redo != nullptr &&
-                textSelects.size() == 2 && formattingSelect != nullptr &&
-                punctuationSelect != nullptr,
+                textSelects.size() == 3 && formattingSelect != nullptr &&
+                punctuationSelect != nullptr && targetSelect != nullptr && targetSelect->isHidden(),
             "the shared action panel should contain the OCR editing controls");
     require(
         undo->toolTip() == shortcutTooltip(QStringLiteral("Undo"), {QStringLiteral("Ctrl+Z")}) &&
@@ -5611,6 +5840,22 @@ void ocrToolReplacesSelectionActionToolbarContents() {
                 !textSelects.at(1)->isHidden(),
             "OCR mode should replace selection actions with text editing controls");
     QLayout* actionLayout = actionPanel->layout();
+    require(actionLayout->indexOf(punctuationSelect) < actionLayout->indexOf(targetSelect) &&
+                actionLayout->indexOf(targetSelect) < actionLayout->indexOf(reset),
+            "quick target language follows punctuation and precedes Reset");
+    int targetRequests = 0;
+    QString requestedTarget;
+    QObject::connect(&palette, &ScreenshotToolPalette::textTargetLanguageRequested,
+                     [&](const QString& value) {
+                         ++targetRequests;
+                         requestedTarget = value;
+                     });
+    palette.setTextTargetLanguage(QStringLiteral("zh-Hant"));
+    require(targetRequests == 0 && targetSelect->currentValue() == QStringLiteral("zh-Hant"),
+            "publishing primary target updates the selector without requesting another save");
+    require(targetSelect->model()->rowCount() ==
+                snow_shot::translation::translationLanguages().size(),
+            "quick target exposes every shared language without Auto-detect");
     require(
         actionLayout != nullptr && actionLayout->indexOf(edit) < actionLayout->indexOf(translate) &&
             actionLayout->indexOf(translate) < actionLayout->indexOf(textSelects.at(0)) &&
@@ -5632,6 +5877,49 @@ void ocrToolReplacesSelectionActionToolbarContents() {
     require(edit->isEnabled() && !reset->isEnabled() && textSelects.at(0)->isEnabled() &&
                 textSelects.at(1)->isEnabled(),
             "a text result should enable editing operations but not Reset");
+    formattingSelect->setCurrentValue(QStringLiteral("smart"));
+    require(formattingSelect->currentValue().toString() == QStringLiteral("smart"),
+            "OCR formatting offers Smart Typesetting");
+    auto& language = snow_shot::presentation::LanguageManager::instance();
+    punctuationSelect->setCurrentValue(QStringLiteral("full"));
+    const auto checkSharedOptions = [](const adqt::widgets::AdSelect* select,
+                                       const QVector<snow_shot::OcrTextOption>& sharedOptions) {
+        require(select->model()->rowCount() == sharedOptions.size(),
+                "OCR toolbar exposes every shared settings choice");
+        for (int row = 0; row < sharedOptions.size(); ++row) {
+            const auto& option = sharedOptions.at(row);
+            const auto index = select->model()->index(row, 0);
+            require(
+                index.data(adqt::widgets::AdSelect::DefaultValueRole).toString() == option.value &&
+                    index.data(adqt::widgets::AdSelect::DefaultLabelRole).toString() ==
+                        QCoreApplication::translate(snow_shot::kOcrTextOptionsTranslationContext,
+                                                    option.label),
+                "OCR toolbar uses shared values, order and localized labels");
+        }
+    };
+    for (const QString& locale :
+         {QStringLiteral("zh_CN"), QStringLiteral("zh_TW"), QStringLiteral("en_US")}) {
+        require(language.setLanguage(locale), "switch OCR formatting language");
+        QCoreApplication::processEvents();
+        checkSharedOptions(formattingSelect, snow_shot::ocrFormattingOptions());
+        checkSharedOptions(punctuationSelect, snow_shot::ocrPunctuationOptions());
+        for (int row = 0; row < targetSelect->model()->rowCount(); ++row) {
+            const auto& option = snow_shot::translation::translationLanguages()[row];
+            const auto index = targetSelect->model()->index(row, 0);
+            require(index.data(adqt::widgets::AdSelect::DefaultValueRole) ==
+                            QString::fromLatin1(option.code) &&
+                        index.data(adqt::widgets::AdSelect::DefaultLabelRole) ==
+                            QCoreApplication::translate("TranslationLanguages", option.name) &&
+                        index.data(adqt::widgets::AdSelect::DefaultGroupRole) ==
+                            QString::fromLatin1(option.code).left(1).toUpper(),
+                    "quick target shares language codes, localized labels and code initial groups");
+        }
+        require(formattingSelect->currentValue().toString() == QStringLiteral("smart") &&
+                    punctuationSelect->currentValue().toString() == QStringLiteral("full") &&
+                    targetSelect->currentValue().toString() == QStringLiteral("zh-Hant") &&
+                    targetRequests == 0,
+                "OCR options retranslate without changing selections or requesting a target save");
+    }
     formattingSelect->setCurrentValue(QStringLiteral("remove"));
     punctuationSelect->setCurrentValue(QStringLiteral("full"));
     require(formattingSelect->currentValue().toString() == QStringLiteral("remove") &&
@@ -5641,6 +5929,18 @@ void ocrToolReplacesSelectionActionToolbarContents() {
     require(!formattingSelect->currentValue().isValid() &&
                 !punctuationSelect->currentValue().isValid(),
             "published manual-edit state should clear both OCR transform selections");
+    QString requestedFormatting;
+    QString requestedPunctuation;
+    QObject::connect(&palette, &ScreenshotToolPalette::textFormattingRequested,
+                     [&requestedFormatting](const QString& value) { requestedFormatting = value; });
+    QObject::connect(
+        &palette, &ScreenshotToolPalette::textPunctuationRequested,
+        [&requestedPunctuation](const QString& value) { requestedPunctuation = value; });
+    formattingSelect->setCurrentValue(QStringLiteral("none"));
+    punctuationSelect->setCurrentValue(QStringLiteral("none"));
+    require(requestedFormatting == QStringLiteral("none") &&
+                requestedPunctuation == QStringLiteral("none"),
+            "both toolbars can explicitly request the shared None choice");
     palette.setTextEditingState(true, true);
     palette.setTextTranslationState(true, false, false, false, false, false);
     require(edit->buttonStyle() == adqt::widgets::AdButton::ButtonStyle::Solid &&
@@ -5661,6 +5961,11 @@ void ocrToolReplacesSelectionActionToolbarContents() {
             "OCR editing should expose the text document's undo state on the toolbar");
     palette.setTextEditingState(true, false);
     palette.setTextTranslationState(true, true, true, false, false, false);
+    require(!targetSelect->isHidden() && targetSelect->isEnabled() && targetSelect->searchEnabled(),
+            "quick target is visible and remains searchable during streaming");
+    targetSelect->setCurrentValue(QStringLiteral("ko"));
+    require(targetRequests == 1 && requestedTarget == QStringLiteral("ko"),
+            "quick target publishes a primary-language change");
     require(translate->isEnabled() &&
                 translate->buttonStyle() == adqt::widgets::AdButton::ButtonStyle::Solid &&
                 !reset->isEnabled() && !textSelects.at(0)->isEnabled() &&
@@ -5681,6 +5986,8 @@ void ocrToolReplacesSelectionActionToolbarContents() {
                 edit->accentRole() == adqt::widgets::AdButton::AccentRole::Neutral &&
                 !reset->isEnabled(),
             "Edit should return to its inactive state after text editing exits");
+    palette.setActiveTool(ScreenshotToolPalette::Tool::Ocr);
+    require(targetSelect->isHidden(), "quick target is hidden outside Text Translation");
 }
 
 void recognitionToolsKeepDrawingToolsAvailable() {
@@ -6494,32 +6801,200 @@ void highlightStyleToolbarWidthTracksActiveMode() {
             "switching back to rectangle highlight should restore its style toolbar width");
 }
 
-void eraserToolIsDiscoverableAndHidesStyleControls() {
+void eraserStyleToolbarHeightMatchesOtherTools() {
+    using Tool = ScreenshotToolPalette::Tool;
     ScreenshotToolPalette::Options options;
     options.showShapeTool = true;
     options.showEraserTool = true;
     ScreenshotToolPalette palette(options);
 
-    auto* eraserButton =
-        qobject_cast<adqt::widgets::AdButton*>(controlWithTooltip(palette, "Eraser"));
-    require(eraserButton != nullptr, "Eraser toolbar control should be present");
-    int requestCount = 0;
-    QObject::connect(&palette, &ScreenshotToolPalette::eraserRequested,
-                     [&requestCount]() { ++requestCount; });
-    eraserButton->click();
-    require(requestCount == 1, "clicking Eraser should emit one tool request");
-    require(palette.stylePanel() == nullptr || palette.stylePanel()->isHidden(),
-            "Eraser should hide style controls");
+    for (const qreal scale : {1.0, 1.25, 1.5, 2.0}) {
+        palette.setPhysicalScale(scale);
+        palette.setActiveTool(Tool::Shape);
+        palette.prepareForDisplay();
+        const int shapeHeight = palette.stylePanel()->height();
+        for (Tool tool : {Tool::Eraser, Tool::RectangleEraser, Tool::BrushEraser}) {
+            palette.setActiveTool(tool);
+            palette.prepareForDisplay();
+            require(
+                palette.styleToolbarVisible() && palette.stylePanel()->height() == shapeHeight,
+                "each eraser mode should retain the shared style toolbar height at every scale");
+        }
+    }
+}
 
-    SnowCanvasStyleToolbarState state;
-    state.source = SnowCanvasStyleToolbarSource::Eraser;
-    palette.setStyleToolbarState(state);
-    require(palette.stylePanel() == nullptr || palette.stylePanel()->isHidden(),
-            "Eraser style source should remain hidden even with canvas state updates");
-
+void eraserToolsExposeRememberedModesAndIndependentWidth() {
+    using Tool = ScreenshotToolPalette::Tool;
+    const snow_shot::storage::ScreenshotToolbarSettings settings;
+    const QString originalMode = settings.lastEraserTool();
+    const auto originalDefaults = snow_shot::presentation::screenshotCanvasToolStyleDefaults();
+    const auto cleanup = qScopeGuard([&] {
+        static_cast<void>(settings.setLastEraserTool(originalMode));
+        static_cast<void>(
+            snow_shot::presentation::persistScreenshotCanvasToolStyles(originalDefaults));
+    });
+    require(settings.setLastEraserTool(QStringLiteral("eraser")), "reset first-use eraser mode");
+    ScreenshotToolPalette::Options options;
+    options.showEraserTool = true;
+    options.showFilterTool = true;
+    options.styleDefaults = originalDefaults;
+    options.styleDefaults.brushEraser.strokeWidth = 30;
+    ScreenshotToolPalette palette(options);
     SnowCanvasWidget canvas;
-    require(canvas.setCanvasTool(SnowCanvasTool::Eraser), "canvas should accept Eraser");
-    require(canvas.canvasTool() == SnowCanvasTool::Eraser, "canvas should retain Eraser identity");
+    canvas.setInteractionEnabled(true);
+    snow_shot::presentation::applyScreenshotCanvasToolStyles(canvas, options.styleDefaults);
+    snow_shot::presentation::ScreenshotStyleBinding binding(palette, canvas, &palette);
+    QObject::connect(&canvas, &SnowCanvasWidget::styleToolbarStateChanged, &palette,
+                     [&] { palette.setStyleToolbarState(canvas.canvasStyleToolbarState()); });
+    int elementRequests = 0;
+    int rectangleRequests = 0;
+    int brushRequests = 0;
+    QObject::connect(&palette, &ScreenshotToolPalette::eraserRequested, [&] {
+        ++elementRequests;
+        static_cast<void>(canvas.setCanvasTool(SnowCanvasTool::Eraser));
+    });
+    QObject::connect(&palette, &ScreenshotToolPalette::rectangleEraserRequested, [&] {
+        ++rectangleRequests;
+        static_cast<void>(canvas.setCanvasTool(SnowCanvasTool::RectangleEraser));
+    });
+    QObject::connect(&palette, &ScreenshotToolPalette::brushEraserRequested, [&] {
+        ++brushRequests;
+        static_cast<void>(canvas.setCanvasTool(SnowCanvasTool::BrushEraser));
+    });
+    auto* button = qobject_cast<adqt::widgets::AdButton*>(controlWithTooltip(palette, "Eraser"));
+    require(button != nullptr, "main eraser button stays discoverable");
+    button->click();
+    require(palette.activeTool() == Tool::Eraser && elementRequests == 1,
+            "first eraser activation preserves whole-element default");
+    const auto group = [&]() {
+        auto* selector =
+            palette.findChild<QWidget*>(QStringLiteral("screenshotEraserModeSelector"));
+        return selector != nullptr ? selector->findChild<adqt::widgets::AdRadioButtonGroup*>()
+                                   : nullptr;
+    };
+    require(group() && group()->buttons().size() == 3 && palette.styleToolbarVisible(),
+            "eraser exposes exactly three secondary modes");
+    require(!palette.findChild<QWidget*>(QStringLiteral("screenshotBrushEraserStrokeWidthSummary")),
+            "element eraser has no stroke width editor");
+    group()->button(static_cast<int>(Tool::RectangleEraser))->click();
+    require(palette.activeTool() == Tool::RectangleEraser && rectangleRequests == 1 &&
+                settings.lastEraserTool() == QStringLiteral("rectangle-eraser"),
+            "rectangle mode explicitly activates and persists without toggling");
+    group()->button(static_cast<int>(Tool::BrushEraser))->click();
+    require(palette.activeTool() == Tool::BrushEraser && brushRequests == 1,
+            "brush mode activates exactly once");
+    auto* summary = palette.findChild<adqt::widgets::AdButton*>(
+        QStringLiteral("screenshotBrushEraserStrokeWidthSummary"));
+    require(summary != nullptr &&
+                canvas.canvasStyleToolbarState().brushEraserStyle.strokeWidth == 30,
+            "brush eraser exposes its independent default width");
+    auto* preset = palette.findChild<adqt::widgets::AdButton*>(
+        QStringLiteral("screenshotBrushEraserStrokeWidth42"));
+    require(preset != nullptr, "brush eraser shares the S/M/L/XL width catalog");
+    preset->click();
+    require(
+        canvas.canvasStyleToolbarState().brushEraserStyle.strokeWidth == 42 &&
+            snow_shot::presentation::screenshotCanvasToolStyleDefaults().brushEraser.strokeWidth ==
+                42,
+        "brush preset reaches creation defaults and independent storage");
+    summary->click();
+    require(canvas.canvasStyleToolbarState().brushEraserStyle.strokeWidth == 43,
+            "brush width summary steps by one pixel");
+    for (int step = 0; step < 100; ++step)
+        require(palette.stepBrushEraserStrokeWidth(1), "active brush accepts width wheel steps");
+    require(canvas.canvasStyleToolbarState().brushEraserStyle.strokeWidth == 72,
+            "brush width clamps to the pen filter upper limit");
+    for (int step = 0; step < 100; ++step)
+        static_cast<void>(palette.stepBrushEraserStrokeWidth(-1));
+    require(canvas.canvasStyleToolbarState().brushEraserStyle.strokeWidth == 1,
+            "brush width clamps to one pixel");
+    button->click();
+    require(palette.activeTool() == Tool::Select &&
+                settings.lastEraserTool() == QStringLiteral("brush-eraser"),
+            "clicking active eraser family switches to Select without losing mode");
+    button->click();
+    require(palette.activeTool() == Tool::BrushEraser, "main button restores last selected eraser");
+    require(settings.setLastEraserTool(QStringLiteral("rectangle-eraser")),
+            "change external preference");
+    require(palette.activateDrawingShortcut(QStringLiteral("eraser")) &&
+                palette.activeTool() == Tool::Select,
+            "generic shortcut uses active brush mode before remembered rectangle mode");
+    require(palette.activateDrawingShortcut(QStringLiteral("eraser")) &&
+                palette.activeTool() == Tool::RectangleEraser,
+            "generic shortcut restores external remembered eraser mode when inactive");
+    ScreenshotToolPalette restored(options);
+    require(restored.activateDrawingShortcut(QStringLiteral("eraser")) &&
+                restored.activeTool() == Tool::RectangleEraser,
+            "rebuilt palettes restore persisted eraser mode");
+    require(!palette.stepBrushEraserStrokeWidth(1), "rectangle mode does not adjust brush width");
+    palette.setActiveTool(Tool::BrushEraser);
+    QWidget* brushRow =
+        palette.findChild<QWidget*>(QStringLiteral("screenshotBrushEraserStyleControls"));
+    QWidget* widthRoot = styleEditorRoot(brushRow, "brush-width");
+    palette.setActiveTool(Tool::PenFilter);
+    QWidget* penRow =
+        palette.findChild<QWidget*>(QStringLiteral("screenshotPenFilterStyleControls"));
+    require(widthRoot != nullptr && widthRoot == styleEditorRoot(penRow, "brush-width") &&
+                palette.creationStyleDefaults().penFilter.strokeWidth ==
+                    options.styleDefaults.penFilter.strokeWidth,
+            "brush and pen filter reuse width widgets without sharing values");
+    palette.setActiveTool(Tool::BrushEraser);
+    palette.setStyleEditHandler([](const SnowCanvasStyleEdit&) { return false; });
+    require(palette.stepBrushEraserStrokeWidth(1) &&
+                palette.creationStyleDefaults().brushEraser.strokeWidth == 1,
+            "rejected brush style commits leave creation preferences unchanged");
+}
+
+void recordingEraserActivationReturnsToSelect() {
+    using Tool = ScreenshotToolPalette::Tool;
+    const snow_shot::storage::ScreenshotToolbarSettings settings;
+    const QString originalMode = settings.lastEraserTool();
+    const auto cleanup =
+        qScopeGuard([&] { static_cast<void>(settings.setLastEraserTool(originalMode)); });
+    require(settings.setLastEraserTool(QStringLiteral("eraser")),
+            "recording eraser fixture starts with the element eraser");
+    ScreenshotToolPalette::Options options;
+    options.showEraserTool = true;
+    options.showRecordingControls = true;
+    options.recordingDrawingMode = true;
+    ScreenshotToolPalette palette(options);
+    int selectRequests = 0;
+    QObject::connect(&palette, &ScreenshotToolPalette::selectRequested, [&] { ++selectRequests; });
+    auto* button = qobject_cast<adqt::widgets::AdButton*>(controlWithTooltip(palette, "Eraser"));
+    require(button != nullptr, "recording exposes the generic eraser entry");
+    button->click();
+    for (const auto& [tool, setting] :
+         {std::pair{Tool::Eraser, QStringLiteral("eraser")},
+          std::pair{Tool::RectangleEraser, QStringLiteral("rectangle-eraser")},
+          std::pair{Tool::BrushEraser, QStringLiteral("brush-eraser")}}) {
+        auto* selector =
+            palette.findChild<QWidget*>(QStringLiteral("screenshotEraserModeSelector"));
+        auto* group =
+            selector ? selector->findChild<adqt::widgets::AdRadioButtonGroup*>() : nullptr;
+        require(group && group->button(static_cast<int>(tool)),
+                "recording eraser fixture exposes every secondary mode");
+        group->button(static_cast<int>(tool))->click();
+        require(palette.activeTool() == tool && settings.lastEraserTool() == setting,
+                "recording secondary mode activation persists its variant");
+        int previousSelectRequests = selectRequests;
+        button->click();
+        require(palette.activeTool() == Tool::Select && !palette.recordingExportSettingsVisible() &&
+                    selectRequests == previousSelectRequests + 1 &&
+                    settings.lastEraserTool() == setting,
+                "repeated recording eraser click requests Select while preserving its mode");
+        button->click();
+        require(palette.activeTool() == tool, "recording eraser click restores its last mode");
+        previousSelectRequests = selectRequests;
+        require(palette.activateDrawingShortcut(QStringLiteral("eraser")) &&
+                    palette.activeTool() == Tool::Select &&
+                    !palette.recordingExportSettingsVisible() &&
+                    selectRequests == previousSelectRequests + 1 &&
+                    settings.lastEraserTool() == setting,
+                "repeated recording eraser shortcut shares the Select toggle contract");
+        require(palette.activateDrawingShortcut(QStringLiteral("eraser")) &&
+                    palette.activeTool() == tool,
+                "recording eraser shortcut restores its last mode");
+    }
 }
 
 void drawingModeSelectionsSurviveToolbarReentry() {
@@ -6994,7 +7469,7 @@ void filterStyleEditorsMatchShapeAndSpotlightMetrics() {
         snapshot.panelHeight = palette.stylePanel()->height();
         snapshot.iconSize = icon->size();
         snapshot.sliderSize = slider->size();
-        snapshot.pixmap = icon->pixmap(Qt::ReturnByValue);
+        snapshot.pixmap = icon->pixmap();
         return snapshot;
     };
     const auto pixmapHasVisiblePixel = [](const QPixmap& pixmap) {
@@ -8106,7 +8581,7 @@ void drawTemplateSelectSavesFiltersInsertsAndDeletes() {
     auto* layout =
         select == nullptr ? nullptr : qobject_cast<QBoxLayout*>(select->parentWidget()->layout());
     require(select != nullptr && opacity != nullptr && layout != nullptr &&
-                select->placeholder() == QStringLiteral("Draw Template") &&
+                select->placeholder() == QStringLiteral("Annotation Template") &&
                 select->searchEnabled() && select->isEnabled() &&
                 layout->indexOf(select) < layout->indexOf(opacity),
             "Draw Template should be an enabled searchable select left of opacity");
@@ -8146,7 +8621,7 @@ void drawTemplateSelectSavesFiltersInsertsAndDeletes() {
     require(language.setLanguage(QStringLiteral("zh_CN")),
             "Draw Template popup should load Simplified Chinese");
     QCoreApplication::processEvents();
-    require(select->placeholder() == QStringLiteral("绘图模板") &&
+    require(select->placeholder() == QStringLiteral("标注模板") &&
                 add->text() == QStringLiteral("添加模板"),
             "an open Draw Template popup should retranslate its field and footer");
     require(language.setLanguage(QStringLiteral("en_US")),
@@ -8170,7 +8645,7 @@ void drawTemplateSelectSavesFiltersInsertsAndDeletes() {
             "Draw Template modal should load Traditional Chinese");
     QCoreApplication::processEvents();
     require(modal->windowTitle() == QStringLiteral("新增範本") &&
-                select->placeholder() == QStringLiteral("繪圖範本"),
+                select->placeholder() == QStringLiteral("標註範本"),
             "an open Add Template modal should retranslate without closing");
     require(language.setLanguage(QStringLiteral("en_US")),
             "Draw Template test should restore English");
@@ -9492,6 +9967,94 @@ void retainedEditorsApplyDestinationMixedStateDuringReconciliation() {
                            "the retained stroke-style editor should apply destination mixed state");
 }
 
+void serialNumberNumericTypeEditorPreservesValuesAndRetranslates() {
+    using Numeric = SnowCanvasSerialNumberNumericType;
+    ScreenshotToolPalette::Options options;
+    options.showSerialNumberTool = true;
+    options.showTextTool = true;
+    ScreenshotToolPalette palette(options);
+    palette.setActiveTool(ScreenshotToolPalette::Tool::SerialNumber);
+    SnowCanvasStyleToolbarState state;
+    state.source = SnowCanvasStyleToolbarSource::SelectedSerialNumber;
+    state.serialNumberStyle.number = 27;
+    palette.setStyleToolbarState(state);
+    palette.show();
+    QCoreApplication::processEvents();
+    auto findGroup = [&]() {
+        auto* root = palette.findChild<QWidget*>(
+            QStringLiteral("screenshotSerialNumberNumericTypeButtonGroup"));
+        require(root != nullptr, "numeric format editor exists");
+        return root->findChild<adqt::widgets::AdRadioButtonGroup*>();
+    };
+    auto* group = findGroup();
+    require(group && group->buttons().size() == 5 && group->checkedId() == 0,
+            "numeric format group starts with five choices and Arabic selected");
+    int changes = 0;
+    palette.setStyleEditHandler([&](const SnowCanvasStyleEdit& edit) {
+        const auto* serial = std::get_if<SnowCanvasSerialNumberEdit>(&edit);
+        require(serial && serial->properties == SnowCanvasSerialNumberStyleMixedNumericType,
+                "numeric choice commits only the format property");
+        require(serial->style.number == 27, "format edits keep the exact decimal value");
+        state.serialNumberStyle = serial->style;
+        palette.rememberStyleEdit(edit);
+        ++changes;
+        return true;
+    });
+    const char* labels[] = {"Arabic numerals", "Roman numerals", "Lowercase letters",
+                            "Uppercase letters", "Chinese numerals"};
+    for (int i = 1; i < 5; ++i) {
+        require(group->button(i)->accessibleName() == QString::fromLatin1(labels[i]),
+                "format buttons have descriptive accessible names");
+        group->button(i)->click();
+        require(changes == i && state.serialNumberStyle.numericType == Numeric(i),
+                "each format button emits the chosen enum");
+    }
+    auto* input =
+        qobject_cast<QLineEdit*>(controlWithTooltip(palette, "Sequence number (scroll to adjust)"));
+    require(input && input->text() == QStringLiteral("27"),
+            "formatted labels keep decimal editing");
+    state.serialNumberStyleMixed =
+        SnowCanvasSerialNumberStyleMixedNumericType | SnowCanvasSerialNumberStyleMixedNumber;
+    palette.setStyleToolbarState(state);
+    require(group->checkedId() == -1, "mixed numeric formats select no button");
+    group->button(4)->click();
+    require(changes == 5, "choosing the representative mixed format still commits");
+    state.serialNumberStyleMixed = 0;
+    state.serialNumberStyle.type = SnowCanvasSerialNumberType::Circle;
+    palette.setStyleToolbarState(state);
+    require(!group->button(0)->isEnabled() && group->checkedId() == 4,
+            "unnumbered circles disable format editing and retain the format");
+    state.serialNumberStyle.type = SnowCanvasSerialNumberType::OutlinedSquare;
+    palette.setStyleToolbarState(state);
+    require(group->button(0)->isEnabled(), "numbered badges restore format editing");
+    palette.setPhysicalScale(1.5);
+    palette.setActiveTool(ScreenshotToolPalette::Tool::Text);
+    palette.setActiveTool(ScreenshotToolPalette::Tool::SerialNumber);
+    group = findGroup();
+    require(group->checkedId() == 4, "format survives editor recreation and DPI changes");
+    auto& language = snow_shot::presentation::LanguageManager::instance();
+    for (const auto& locale :
+         {QStringLiteral("zh_CN"), QStringLiteral("zh_TW"), QStringLiteral("en_US")}) {
+        require(language.setLanguage(locale), "numeric format translation catalog loads");
+        QCoreApplication::processEvents();
+        require(group == findGroup() && group->checkedId() == 4,
+                "language changes preserve the editor");
+        const QString translated =
+            QCoreApplication::translate("ScreenshotToolPalette", "Roman numerals");
+        require(group->button(1)->accessibleName() == translated &&
+                    group->button(1)->toolTip() == translated,
+                "numeric tooltips and accessible names retranslate together");
+        require(locale == QStringLiteral("en_US") || translated != QStringLiteral("Roman numerals"),
+                "Chinese catalogs contain translated format names");
+    }
+    if (const QString path = qEnvironmentVariable("SNOW_SERIAL_NUMBER_TOOLBAR_PREVIEW");
+        !path.isEmpty()) {
+        auto* row =
+            palette.findChild<QWidget*>(QStringLiteral("screenshotSerialNumberStyleControls"));
+        require(row && row->grab().save(path), "save numeric format toolbar preview");
+    }
+}
+
 void serialNumberStyleControlsExposeAndEmitRequestedProperties() {
     ScreenshotToolPalette::Options options;
     options.showTextTool = true;
@@ -9649,12 +10212,15 @@ void serialNumberStyleControlsExposeAndEmitRequestedProperties() {
     require(fontSelect != nullptr && fontSelect->placeholder() == QStringLiteral("Font family") &&
                 fontSelect->variant() == adqt::widgets::AdSelect::Variant::Borderless,
             "sequence-number font family should reuse the text selector");
+    auto* numericRoot =
+        palette.findChild<QWidget*>(QStringLiteral("screenshotSerialNumberNumericTypeButtonGroup"));
     const QList<QFrame*> separators =
         controls->findChildren<QFrame*>(QString(), Qt::FindDirectChildrenOnly);
     auto* typeGroup =
         typeRoot != nullptr ? typeRoot->findChild<adqt::widgets::AdRadioButtonGroup*>() : nullptr;
     require(
-        separators.size() == 3 && typeRoot != nullptr && typeGroup != nullptr &&
+        separators.size() == 4 && numericRoot != nullptr && typeRoot != nullptr &&
+            typeGroup != nullptr &&
             controlWithTooltip(palette, "Sequence number type") == typeRoot &&
             controlWithTooltip(palette, "Outlined circle") != nullptr &&
             controlWithTooltip(palette, "Solid circle") != nullptr &&
@@ -9664,9 +10230,13 @@ void serialNumberStyleControlsExposeAndEmitRequestedProperties() {
                 serialNumberLayout->indexOf(separators.at(0)) &&
             serialNumberLayout->indexOf(separators.at(0)) < serialNumberLayout->indexOf(typeRoot) &&
             serialNumberLayout->indexOf(typeRoot) < serialNumberLayout->indexOf(separators.at(1)) &&
-            serialNumberLayout->indexOf(separators.at(1)) < numberEditorIndex &&
-            serialNumberLayout->indexOf(fontRoot) < serialNumberLayout->indexOf(separators.at(2)) &&
-            serialNumberLayout->indexOf(separators.at(2)) < serialNumberLayout->indexOf(fillRoot) &&
+            serialNumberLayout->indexOf(separators.at(1)) <
+                serialNumberLayout->indexOf(numericRoot) &&
+            serialNumberLayout->indexOf(numericRoot) <
+                serialNumberLayout->indexOf(separators.at(2)) &&
+            serialNumberLayout->indexOf(separators.at(2)) < numberEditorIndex &&
+            serialNumberLayout->indexOf(fontRoot) < serialNumberLayout->indexOf(separators.at(3)) &&
+            serialNumberLayout->indexOf(separators.at(3)) < serialNumberLayout->indexOf(fillRoot) &&
             fillRoot != nullptr && fillLayout != nullptr &&
             fillRoot->isAncestorOf(fillColorPicker) && solidFill != nullptr &&
             crossLineFill != nullptr && lineFill != nullptr &&
@@ -11035,18 +11605,41 @@ void selectToolExposesDedicatedActionToolbar() {
             "opacity slider should be disabled again after clearing the selection");
 }
 
-void selectionResetRemainsAvailableWithoutSelection() {
+void eraserResetRemainsAvailableWithoutSelection() {
     ScreenshotToolPalette::Options options;
     options.showSelectTool = true;
+    options.showEraserTool = true;
     ScreenshotToolPalette palette(options);
     int resetCount = 0;
     QObject::connect(&palette, &ScreenshotToolPalette::resetCanvasRequested,
                      [&resetCount]() { ++resetCount; });
-    for (const auto alternate :
-         {ScreenshotToolPalette::Tool::Ocr, ScreenshotToolPalette::Tool::Table}) {
-        palette.setActiveTool(ScreenshotToolPalette::Tool::Select);
+    palette.setActiveTool(ScreenshotToolPalette::Tool::Select);
+    palette.prepareForDisplay();
+    require(palette.actionPanel()->findChild<adqt::widgets::AdButton*>(
+                QStringLiteral("screenshotResetCanvasButton")) == nullptr,
+            "selection toolbar must not contain reset");
+    auto* selectionLayout = qobject_cast<QBoxLayout*>(palette.actionPanel()->layout());
+    QWidget* lastControl = nullptr;
+    for (int i = 0; i < selectionLayout->count(); ++i) {
+        if (auto* widget = selectionLayout->itemAt(i)->widget();
+            widget != nullptr && !widget->isHidden()) {
+            lastControl = widget;
+        }
+    }
+    require(lastControl != nullptr &&
+                lastControl->toolTip() == QStringLiteral("Delete selected elements"),
+            "selection toolbar must end with Delete without a trailing separator");
+    for (const auto tool :
+         {ScreenshotToolPalette::Tool::Eraser, ScreenshotToolPalette::Tool::RectangleEraser,
+          ScreenshotToolPalette::Tool::BrushEraser}) {
+        palette.setActiveTool(tool);
         palette.prepareForDisplay();
-        QPointer<adqt::widgets::AdButton> reset = palette.findChild<adqt::widgets::AdButton*>(
+        auto* controls = palette.stylePanel()->findChild<QWidget*>(
+            tool == ScreenshotToolPalette::Tool::BrushEraser
+                ? QStringLiteral("screenshotBrushEraserStyleControls")
+                : QStringLiteral("screenshotEraserStyleControls"));
+        require(controls != nullptr, "eraser controls should be materialized");
+        QPointer<adqt::widgets::AdButton> reset = controls->findChild<adqt::widgets::AdButton*>(
             QStringLiteral("screenshotResetCanvasButton"));
         require(reset != nullptr && !reset->isHidden() && reset->isEnabled(),
                 "canvas reset should be available without a selection");
@@ -11055,33 +11648,26 @@ void selectionResetRemainsAvailableWithoutSelection() {
         require(reset->toolTip() == QStringLiteral("Reset") &&
                     reset->accessibleName() == QStringLiteral("Reset"),
                 "canvas reset should have a tooltip and accessible name");
-        auto* layout = qobject_cast<QBoxLayout*>(palette.actionPanel()->layout());
+        auto* layout = qobject_cast<QBoxLayout*>(controls->layout());
         const int index = layout->indexOf(reset);
-        require(index >= 2, "canvas reset should follow the selection actions");
-        QPointer<QFrame> separator = qobject_cast<QFrame*>(layout->itemAt(index - 2)->widget());
-        require(separator != nullptr && !separator->isHidden() &&
-                    layout->itemAt(index - 1)->spacerItem() != nullptr,
+        require(index >= 2, "canvas reset should follow the eraser controls");
+        QFrame* separator = nullptr;
+        for (int i = index - 1; i >= 0; --i) {
+            if (QWidget* widget = layout->itemAt(i)->widget()) {
+                separator = qobject_cast<QFrame*>(widget);
+                break;
+            }
+        }
+        require(separator != nullptr && !separator->isHidden(),
                 "canvas reset should have the standard separator on its left");
         for (int i = index + 1; i < layout->count(); ++i) {
             QWidget* widget = layout->itemAt(i)->widget();
             require(widget == nullptr || widget->isHidden(),
-                    "canvas reset must be the far-right visible selection control");
+                    "canvas reset must be the far-right visible eraser control");
         }
         reset->click();
-        SnowCanvasStyleToolbarState state;
-        state.source = SnowCanvasStyleToolbarSource::SelectedRectangle;
-        palette.setStyleToolbarState(state);
-        require(reset->isEnabled(), "canvas reset should remain enabled with a selection");
-        reset->click();
-        state.source = SnowCanvasStyleToolbarSource::DefaultRectangle;
-        palette.setStyleToolbarState(state);
-        require(reset->isEnabled(), "clearing selection must not disable canvas reset");
-        palette.setActiveTool(alternate);
-        require((reset == nullptr || reset->isHidden()) &&
-                    (separator == nullptr || separator->isHidden()),
-                "recognition modes should hide canvas reset and its separator");
     }
-    require(resetCount == 4, "each reset click should emit exactly one canvas reset command");
+    require(resetCount == 3, "each reset click should emit exactly one canvas reset command");
 }
 
 void selectionAlignmentActionsFollowSelectionUnitCount() {
@@ -12113,6 +12699,7 @@ void canvasToolStylesPersistIndependentlyWithoutGlobalStyles() {
     styles.text.fontSize = 36.0;
     styles.serialNumber.number = 9'007'199'254'740'993LL;
     styles.serialNumber.type = SnowCanvasSerialNumberType::Circle;
+    styles.serialNumber.numericType = SnowCanvasSerialNumberNumericType::Chinese;
     styles.serialNumber.color = QColor(17, 18, 19, 20);
     styles.serialNumber.fontFamily = QStringLiteral("Persisted serial font");
     styles.watermark.text = QStringLiteral("must not persist");
@@ -12217,6 +12804,22 @@ void canvasToolStylesPersistIndependentlyWithoutGlobalStyles() {
                 static_cast<int>(SnowCanvasSerialNumberType::Circle),
             "the last sequence-number type should persist with its appearance");
 
+    require(savedSerialStyle.value(QStringLiteral("numeric_type")).toInt(-1) == 4,
+            "numeric type persists with the saved appearance");
+    for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(1.5), QJsonValue(-1), QJsonValue(5),
+                                      QJsonValue(QStringLiteral("roman"))}) {
+        auto old = savedSerialStyle;
+        old.remove(QStringLiteral("numeric_type"));
+        if (!invalid.isNull())
+            old.insert(QStringLiteral("numeric_type"), invalid);
+        require(snow_shot::storage::ApplicationStorage::instance().configuration().setValue(
+                    serialKey, old),
+                "save legacy numeric format fixture");
+        auto arabic = expected;
+        arabic.serialNumber.numericType = SnowCanvasSerialNumberNumericType::Arabic;
+        require(snow_shot::presentation::screenshotCanvasToolStyleDefaults() == arabic,
+                "missing and invalid numeric settings default to Arabic");
+    }
     QJsonObject legacySerialStyle = savedSerialStyle;
     legacySerialStyle.remove(QStringLiteral("type"));
     legacySerialStyle.insert(QStringLiteral("number"), styles.serialNumber.number);
@@ -12697,7 +13300,7 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
     options.showMoveTool = true;
     options.showMoveOptionsToolbar = true;
     ScreenshotToolPalette palette(options);
-    palette.setCaptureCursorEnabled(false);
+    palette.setCursorVisible(false);
     palette.setActiveTool(ScreenshotToolPalette::Tool::Move);
 
     auto* controls = palette.findChild<QWidget*>(QStringLiteral("screenshotMoveActionControls"));
@@ -12750,7 +13353,7 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
     require(qr->isEnabled(), "failed recapture restores QR toggle");
     palette.setQrCodeState(false, true);
     require(!qr->isEnabled() && !qr->isChecked(), "invalidated results disable QR toggle");
-    require(!cursor->isCheckable() && !cursor->isChecked() && !palette.captureCursorEnabled(),
+    require(!cursor->isCheckable() && !cursor->isChecked() && !palette.cursorVisible(),
             "Capture cursor must use the same state-driven action button as scrolling screenshot");
 
     auto* regionTypes =
@@ -12867,7 +13470,7 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
     int recaptures = 0;
     int hideChanges = 0;
     bool selectionToolbarHidden = false;
-    QObject::connect(&palette, &ScreenshotToolPalette::captureCursorToggled,
+    QObject::connect(&palette, &ScreenshotToolPalette::cursorVisibilityToggled,
                      [&cursorChanges](bool enabled) { cursorChanges += enabled ? 1 : 100; });
     QObject::connect(&palette, &ScreenshotToolPalette::recaptureRequested,
                      [&recaptures]() { ++recaptures; });
@@ -12876,9 +13479,19 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
                          ++hideChanges;
                          selectionToolbarHidden = hidden;
                      });
+    const bool savedDefault = snow_shot::storage::ScreenshotSettings().showCursor();
+    palette.setCursorAvailable(false);
     cursor->click();
-    require(cursorChanges == 1 && palette.captureCursorEnabled(),
-            "Capture cursor clicks must update state and emit the persisted-setting command");
+    require(!cursor->isEnabled() && cursorChanges == 0 &&
+                cursor->toolTip() ==
+                    QStringLiteral("Cursor data is unavailable for this screenshot."),
+            "unavailable cursor data must disable its action with an explanation");
+    palette.setCursorAvailable(true);
+    cursor->click();
+    require(snow_shot::storage::ScreenshotSettings().showCursor() == savedDefault,
+            "session visibility actions must preserve the saved default");
+    require(cursorChanges == 1 && palette.cursorVisible(),
+            "Show Cursor clicks must update session state and emit one visibility command");
     recapture->click();
     require(recaptures == 1 && recapture->toolTip() == shortcutTooltip(QStringLiteral("Recapture"),
                                                                        {QStringLiteral("Alt+R")}),
@@ -12924,8 +13537,7 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
         QStringLiteral("screenshotCaptureCursorButton"));
     auto* retainedRecapture =
         palette.findChild<adqt::widgets::AdButton*>(QStringLiteral("screenshotRecaptureButton"));
-    require(retainedCursor == cursor && retainedRecapture == recapture &&
-                palette.captureCursorEnabled(),
+    require(retainedCursor == cursor && retainedRecapture == recapture && palette.cursorVisible(),
             "canvas style pushes must not rebuild the Move options row or reset its state");
     require(palette.activateScreenshotShortcut(QStringLiteral("recapture")) && recaptures == 3,
             "Move options keep their commands after canvas style pushes");
@@ -12950,14 +13562,14 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
     requireMatchingButtonState();
     cursor->click();
     scrollingButton->click();
-    require(!palette.captureCursorEnabled() && cursorChanges == 101,
+    require(!palette.cursorVisible() && cursorChanges == 101,
             "clicking Capture cursor again must disable capture and emit once");
     requireMatchingButtonState();
     require(recapture->buttonStyle() == scrollingButton->buttonStyle() &&
                 recapture->accentRole() == scrollingButton->accentRole() &&
                 recapture->isCheckable() == scrollingButton->isCheckable(),
             "Recapture must use the same unselected action button style as scrolling screenshot");
-    palette.setCaptureCursorEnabled(true);
+    palette.setCursorVisible(true);
     scrollingButton->click();
     require(cursorChanges == 101, "inbound capture state must not emit a user command");
     requireMatchingButtonState();
@@ -13073,7 +13685,7 @@ void moveToolExposesCaptureCursorAndRecaptureOptions() {
         hideSelectionToolbar = palette.findChild<adqt::widgets::AdButton*>(
             QStringLiteral("screenshotHideSelectionToolbarButton"));
         require(palette.actionToolbarVisible() && !palette.styleToolbarVisible() &&
-                    cursor != nullptr && palette.captureCursorEnabled() && recapture != nullptr &&
+                    cursor != nullptr && palette.cursorVisible() && recapture != nullptr &&
                     !recapture->isEnabled() && hideSelectionToolbar != nullptr,
                 "returning to Move must restore capture state through the shared action row");
         requireMatchingButtonState();
@@ -13212,6 +13824,14 @@ int main(int argc, char** argv) {
     require(QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/segoeui.ttf")) >= 0,
             "the font editor tests require a system TrueType font");
 #endif
+    if (application.arguments().contains(QStringLiteral("--eraser-only"))) {
+        eraserResetRemainsAvailableWithoutSelection();
+        eraserStyleToolbarHeightMatchesOtherTools();
+        eraserToolsExposeRememberedModesAndIndependentWidth();
+        recordingEraserActivationReturnsToSelect();
+        snow_shot::storage::ApplicationStorage::instance().shutdown();
+        return 0;
+    }
     if (application.arguments().contains(QStringLiteral("--style-commit-only"))) {
         runScreenshotStyleBindingTests();
         selectedStyleEditsAreReflectedInTheCreationStyleContext();
@@ -13225,6 +13845,14 @@ int main(int argc, char** argv) {
         selectedFilterTypeRemembersOnlyTheEditedProperty();
         canvasToolStylesPersistIndependentlyWithoutGlobalStyles();
         runScreenshotStylePersistenceFailureTest();
+        snow_shot::storage::ApplicationStorage::instance().shutdown();
+        return 0;
+    }
+    if (application.arguments().contains(QStringLiteral("--serial-number-only"))) {
+        serialNumberNumericTypeEditorPreservesValuesAndRetranslates();
+        serialNumberStyleControlsExposeAndEmitRequestedProperties();
+        serialNumberInputCommitsEditsAndSupportsWheel();
+        canvasToolStylesPersistIndependentlyWithoutGlobalStyles();
         snow_shot::storage::ApplicationStorage::instance().shutdown();
         return 0;
     }
@@ -13301,6 +13929,11 @@ int main(int argc, char** argv) {
         snow_shot::storage::ApplicationStorage::instance().shutdown();
         return 0;
     }
+    if (application.arguments().contains(QStringLiteral("--popover-hover-switching-only"))) {
+        groupedToolbarHoverSwitchesWithVisibleTooltips();
+        snow_shot::storage::ApplicationStorage::instance().shutdown();
+        return 0;
+    }
     if (application.arguments().contains(QStringLiteral("--move-options-only"))) {
         regionControlsFollowTheActiveCaptureType();
         moveToolExposesCaptureCursorAndRecaptureOptions();
@@ -13315,7 +13948,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (application.arguments().contains(QStringLiteral("--selection-reset-only"))) {
-        selectionResetRemainsAvailableWithoutSelection();
+        eraserResetRemainsAvailableWithoutSelection();
         selectToolExposesDedicatedActionToolbar();
         selectionAlignmentActionsFollowSelectionUnitCount();
         snow_shot::storage::ApplicationStorage::instance().shutdown();
@@ -13498,6 +14131,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (application.arguments().contains(QStringLiteral("--scrolling-only"))) {
+        scrollingSettingsUseCenteredFormAndPersistOnAccept();
         scrollingSelectionButtonsDragAndLockAxis();
         scrollingIntervalContentsScaleProportionally();
         scrollingScreenshotExposesAxisRecognitionModes();
@@ -13530,9 +14164,11 @@ int main(int argc, char** argv) {
     scrollingScreenshotKeepsDrawingToolsAvailable();
     recognitionToolsKeepDrawingToolsAvailable();
     scrollingSelectionButtonsDragAndLockAxis();
+    scrollingSettingsUseCenteredFormAndPersistOnAccept();
     scrollingScreenshotExposesAxisRecognitionModes();
     screenshotToolbarUsesCanonicalOrderAndSectionSeparators();
     moveToolPresentationUsesTheOwningShortcutScope();
+    groupedToolbarHoverSwitchesWithVisibleTooltips();
     groupedDrawingOptionsShowShortcutTooltips();
     groupedActionOptionsShowShortcutTooltips();
     screenshotActionTooltipsFollowStorageChangesWithoutRetranslation();
@@ -13566,7 +14202,9 @@ int main(int argc, char** argv) {
     drawingToolbarGroupsUseToolbarPopoverMetrics();
     spotlightControlsMatchMaskConfigurationBehavior();
     highlightStyleToolbarWidthTracksActiveMode();
-    eraserToolIsDiscoverableAndHidesStyleControls();
+    eraserStyleToolbarHeightMatchesOtherTools();
+    eraserToolsExposeRememberedModesAndIndependentWidth();
+    recordingEraserActivationReturnsToSelect();
     filterEditorsRestoreValuesAfterToolSwitch();
     filterTypeSelectKeepsSmartEraseAcrossFilterModeSwitches();
     filterToolExposesTypeAndIntensityControls();
@@ -13595,6 +14233,7 @@ int main(int argc, char** argv) {
     lineStyleControlsExposeStraightAndCurveTypes();
     selectedArrowMixedPropertiesResolveIndependently();
     textStyleControlsExposeAndEmitAllRequestedProperties();
+    serialNumberNumericTypeEditorPreservesValuesAndRetranslates();
     serialNumberStyleControlsExposeAndEmitRequestedProperties();
     serialNumberInputCommitsEditsAndSupportsWheel();
     stylePopoverTriggersProvideMouseFeedback();
@@ -13607,7 +14246,7 @@ int main(int argc, char** argv) {
     toolbarScalingDoesNotRelayoutPopupContent();
     popupColorEditorButtonsKeepPopupScaleAfterToolbarDpiCommit();
     selectToolExposesDedicatedActionToolbar();
-    selectionResetRemainsAvailableWithoutSelection();
+    eraserResetRemainsAvailableWithoutSelection();
     selectionAlignmentActionsFollowSelectionUnitCount();
     secondaryToolbarsStartHiddenUntilTheirToolIsSelected();
     selectToolRemainsTheSoleOwnerOfItsSecondaryToolbar();

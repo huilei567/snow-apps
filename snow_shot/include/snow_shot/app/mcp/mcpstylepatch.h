@@ -20,6 +20,8 @@ inline const QHash<QString, SnowCanvasTool>& mcpCanvasTools() {
         {QStringLiteral("rectangle_highlight"), SnowCanvasTool::RectangleHighlight},
         {QStringLiteral("pen_highlight"), SnowCanvasTool::PenHighlight},
         {QStringLiteral("eraser"), SnowCanvasTool::Eraser},
+        {QStringLiteral("rectangle_eraser"), SnowCanvasTool::RectangleEraser},
+        {QStringLiteral("brush_eraser"), SnowCanvasTool::BrushEraser},
         {QStringLiteral("rectangle_filter"), SnowCanvasTool::RectangleFilter},
         {QStringLiteral("pen_filter"), SnowCanvasTool::PenFilter},
         {QStringLiteral("text"), SnowCanvasTool::Text},
@@ -49,6 +51,9 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
          {QStringLiteral("left"), QStringLiteral("center"), QStringLiteral("right")}},
         {QStringLiteral("vertical_align"),
          {QStringLiteral("top"), QStringLiteral("center"), QStringLiteral("bottom")}},
+        {QStringLiteral("numeric_type"),
+         {QStringLiteral("arabic"), QStringLiteral("roman"), QStringLiteral("lowercase_letters"),
+          QStringLiteral("uppercase_letters"), QStringLiteral("chinese")}},
         {QStringLiteral("serial_type"),
          {QStringLiteral("outlined_circle"), QStringLiteral("solid_circle"),
           QStringLiteral("outlined_square"), QStringLiteral("solid_square"),
@@ -90,7 +95,8 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
                    QStringLiteral("font_family"), QStringLiteral("opacity"),
                    QStringLiteral("fill"),        QStringLiteral("stroke_width"),
                    QStringLiteral("fill_style"),  QStringLiteral("stroke_style"),
-                   QStringLiteral("serial_type"), QStringLiteral("number")};
+                   QStringLiteral("serial_type"), QStringLiteral("numeric_type"),
+                   QStringLiteral("number")};
     else if (target == QStringLiteral("watermark"))
         allowed = {QStringLiteral("color"),       QStringLiteral("font_size"),
                    QStringLiteral("font_family"), QStringLiteral("opacity"),
@@ -98,6 +104,8 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
                    QStringLiteral("gap")};
     else if (target == QStringLiteral("spotlight"))
         allowed = {QStringLiteral("color"), QStringLiteral("opacity")};
+    else if (target == QStringLiteral("brush_eraser"))
+        allowed = {QStringLiteral("stroke_width")};
     else if (target == QStringLiteral("rectangle_filter") || target == QStringLiteral("pen_filter"))
         allowed = {QStringLiteral("filter"), QStringLiteral("strength"), QStringLiteral("opacity"),
                    QStringLiteral("stroke_width")};
@@ -208,7 +216,16 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
         }
         return fallback;
     };
-    if (target == QStringLiteral("watermark")) {
+    if (target == QStringLiteral("brush_eraser")) {
+        SnowCanvasBrushEraserStyle style{
+            number("stroke_width", state.brushEraserStyle.strokeWidth)};
+        if (style.strokeWidth < 1.0 || style.strokeWidth > 72.0)
+            return false;
+        if constexpr (requires { canvas.setCanvasBrushEraserCreationStyle(style); })
+            return canvas.setCanvasBrushEraserCreationStyle(style);
+        else
+            return canvas.setBrushEraserCreationStyle(style);
+    } else if (target == QStringLiteral("watermark")) {
         auto style = canvas.canvasWatermarkConfig();
         style.color = color("color", style.color);
         style.fontSize = number("font_size", style.fontSize);
@@ -265,6 +282,8 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
         auto style = state.serialNumberStyle;
         if (patch.contains(QStringLiteral("number")))
             style.number = patch.value(QStringLiteral("number")).toInteger();
+        style.numericType = static_cast<SnowCanvasSerialNumberNumericType>(
+            enumeration("numeric_type", static_cast<int>(style.numericType)));
         style.type = static_cast<SnowCanvasSerialNumberType>(
             enumeration("serial_type", static_cast<int>(style.type)));
         style.color = color("color", style.color);
@@ -278,7 +297,25 @@ inline bool mcpStylePatch(Commands& commands, Canvas& canvas, const QJsonObject&
             enumeration("fill_style", static_cast<int>(style.fillStyle)));
         style.strokeStyle = static_cast<SnowCanvasStrokeStyle>(
             enumeration("stroke_style", static_cast<int>(style.strokeStyle)));
-        return dispatch([&] { return commands.setSerialNumberStyleFromToolbar(style); });
+        const QHash<QString, quint32> properties{
+            {QStringLiteral("number"), SnowCanvasSerialNumberStyleMixedNumber},
+            {QStringLiteral("serial_type"), SnowCanvasSerialNumberStyleMixedType},
+            {QStringLiteral("numeric_type"), SnowCanvasSerialNumberStyleMixedNumericType},
+            {QStringLiteral("color"), SnowCanvasSerialNumberStyleMixedColor},
+            {QStringLiteral("fill"), SnowCanvasSerialNumberStyleMixedFill},
+            {QStringLiteral("fill_style"), SnowCanvasSerialNumberStyleMixedFillStyle},
+            {QStringLiteral("font_size"), SnowCanvasSerialNumberStyleMixedFontSize},
+            {QStringLiteral("font_family"), SnowCanvasSerialNumberStyleMixedFontFamily},
+            {QStringLiteral("stroke_width"), SnowCanvasSerialNumberStyleMixedStrokeWidth},
+            {QStringLiteral("stroke_style"), SnowCanvasSerialNumberStyleMixedStrokeStyle},
+            {QStringLiteral("opacity"), SnowCanvasSerialNumberStyleMixedOpacity}};
+        quint32 flags = 0;
+        for (auto it = patch.begin(); it != patch.end(); ++it)
+            flags |= properties.value(it.key());
+        if constexpr (requires { canvas.applyStyleEdit(SnowCanvasSerialNumberEdit{style, flags}); })
+            return canvas.applyStyleEdit(SnowCanvasSerialNumberEdit{style, flags});
+        else
+            return dispatch([&] { return commands.setSerialNumberStyleFromToolbar(style, flags); });
     } else if (target.endsWith(QStringLiteral("filter"))) {
         auto style = state.filterStyle;
         style.type =

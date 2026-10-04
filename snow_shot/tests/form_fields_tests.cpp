@@ -58,6 +58,36 @@ class Translator final : public QTranslator {
     }
 };
 
+void optionalMetadataAndChoiceLabels() {
+    QWidget owner;
+    fields::Options options;
+    options.parent = &owner;
+    const auto text = fields::text({QStringLiteral("minimal-text")}, options);
+    text.field->syncValue(QStringLiteral("draft"));
+    require(text.item()->fieldKey() == QStringLiteral("minimal-text") &&
+                text.item()->label().isEmpty() && text.editor->placeholderText().isEmpty() &&
+                text.editor->accessibleDescription().isEmpty() &&
+                text.field->value() == QStringLiteral("draft"),
+            "ID-only metadata creates a usable field without optional copy");
+
+    const auto select =
+        fields::select({QStringLiteral("minimal-select"), {"FormFieldsTests", "Field label"}},
+                       {{QStringLiteral("translated"), {"FormFieldsTests", "Option label"}},
+                        {QStringLiteral("raw"), {}, QStringLiteral("Runtime label")}},
+                       options);
+    select.field->syncValue(QStringLiteral("translated"));
+    Translator translator;
+    require(QCoreApplication::installTranslator(&translator), "install minimal field translator");
+    select.field->retranslateUi();
+    const auto choices = select.editor->options();
+    require(choices.size() == 2 &&
+                choices.at(0).label == QStringLiteral("Translated: Option label") &&
+                choices.at(1).label == QStringLiteral("Runtime label") && !choices.at(0).disabled &&
+                !choices.at(1).disabled && select.field->value() == QStringLiteral("translated"),
+            "partial choices preserve translated and runtime labels with enabled defaults");
+    QCoreApplication::removeTranslator(&translator);
+}
+
 void constructionKeepsItemsInTheirOwner() {
     class ItemShowObserver final : public QObject {
       public:
@@ -151,6 +181,45 @@ void presentationsAndFeedback() {
     require(row.viewWidget()->isHidden(), "visibility applies to the entire settings field");
 }
 
+void settingsRowsKeepNaturalHeight() {
+    QWidget owner;
+    auto* layout = new QVBoxLayout(&owner);
+    layout->setAlignment(Qt::AlignTop);
+    fields::Options options;
+    options.parent = &owner;
+    options.presentation = fields::Presentation::SettingsRow;
+    auto rowMetadata = metadata("natural-height-row");
+    rowMetadata.label = {};
+    rowMetadata.description = {};
+    const auto row = fields::text(rowMetadata, options);
+    layout->addWidget(row.viewWidget());
+    owner.resize(760, 320);
+    owner.show();
+    flushEvents();
+    const auto requireNaturalHeight = [&] {
+        require(row.viewWidget()->height() == row.editor->height(),
+                "settings fields without copy or feedback add no space below the control");
+    };
+    requireNaturalHeight();
+    row.field->applyTheme(styles::ThemeManager::instance().themeColorScheme());
+    row.field->syncValue(QStringLiteral("refreshed"));
+    flushEvents();
+    requireNaturalHeight();
+    row.field->setFeedback({QStringLiteral("Invalid value")});
+    flushEvents();
+    require(row.field->feedbackLabel()->isVisible() &&
+                row.viewWidget()->height() > row.editor->height() &&
+                row.viewWidget()->rect().contains(
+                    QRect(row.field->feedbackLabel()->mapTo(row.viewWidget(), QPoint()),
+                          row.field->feedbackLabel()->size())),
+            "settings rows grow to contain inline feedback");
+    row.field->setFeedback();
+    // Clearing feedback posts layout requests through the item, form, row and owner.
+    for (int i = 0; i < 4; ++i)
+        flushEvents();
+    requireNaturalHeight();
+}
+
 void descriptionOverrides() {
     QWidget owner;
     fields::Options options;
@@ -172,6 +241,19 @@ void descriptionOverrides() {
                 row.item()->tooltipText() == temporary &&
                 row.editor->accessibleDescription().contains(temporary),
             "runtime descriptions appear in settings copy, tooltips and accessibility");
+    row.field->setDescriptionOverride(temporary, true);
+    auto& themes = snow_shot::presentation::styles::ThemeManager::instance();
+    require(description->palette().color(QPalette::WindowText) ==
+                themes.themeColorScheme().map.colorErrorText,
+            "runtime error descriptions use the theme's error color");
+    row.field->applyTheme(themes.themeColorScheme());
+    require(description->palette().color(QPalette::WindowText) ==
+                themes.themeColorScheme().map.colorErrorText,
+            "theme refreshes preserve runtime description severity");
+    row.field->setDescriptionOverride(temporary);
+    require(description->palette().color(QPalette::WindowText) ==
+                themes.themeColorScheme().map.colorTextSecondary,
+            "clearing runtime severity restores the normal description color");
     const QString error = QStringLiteral("Invalid value");
     row.field->setFeedback({error});
     row.field->setDescriptionOverride({});
@@ -777,8 +859,10 @@ void customEditorBridgeAndOwnership() {
 int main(int argc, char** argv) {
     QApplication application(argc, argv);
     styles::ThemeManager::instance().initialize(application);
+    optionalMetadataAndChoiceLabels();
     constructionKeepsItemsInTheirOwner();
     presentationsAndFeedback();
+    settingsRowsKeepNaturalHeight();
     descriptionOverrides();
     reservedFeedbackKeepsModalGeometry();
     editAndCommitTiming();

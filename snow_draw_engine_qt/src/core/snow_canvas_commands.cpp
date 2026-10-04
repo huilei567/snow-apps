@@ -350,6 +350,32 @@ MutationResult setFilterStyle(SnowRuntime runtime, SnowViewport viewport,
     return result;
 }
 
+MutationResult setFilterCreationStyle(SnowRuntime runtime, SnowViewport viewport,
+                                      const SnowFilterStyle& style, std::uint32_t properties,
+                                      SnowActiveTool tool) {
+    MutationResult result;
+    if (!hasViewport(runtime, viewport)) {
+        return result;
+    }
+    result.success =
+        snow_viewport_set_filter_creation_style_ex(runtime, viewport, &style, properties, tool,
+                                                   result.changedViewports.outParam()) == SNOW_OK;
+    return result;
+}
+
+MutationResult setBrushEraserCreationStyle(SnowRuntime runtime, SnowViewport viewport,
+                                           const SnowBrushEraserStyle& style,
+                                           std::uint32_t properties) {
+    MutationResult result;
+    if (!hasViewport(runtime, viewport)) {
+        return result;
+    }
+    result.success =
+        snow_viewport_set_brush_eraser_creation_style_ex(
+            runtime, viewport, &style, properties, result.changedViewports.outParam()) == SNOW_OK;
+    return result;
+}
+
 MutationResult setTextStyle(SnowRuntime runtime, SnowViewport viewport, const SnowTextStyle& style,
                             std::uint32_t properties,
                             const std::vector<SnowTextLayoutOverride>& layouts) {
@@ -428,6 +454,19 @@ PairedMutationResult setSnapConfig(SnowRuntime runtime, SnowViewport viewport,
     }
 
     result.success = true;
+    return result;
+}
+
+MutationResult setSnapGuideTargets(SnowRuntime runtime, SnowViewport viewport,
+                                   const double* verticalXs, size_t verticalCount,
+                                   const double* horizontalYs, size_t horizontalCount) {
+    MutationResult result;
+    if (!hasViewport(runtime, viewport)) {
+        return result;
+    }
+    result.success = snow_viewport_set_snap_guide_targets_ex(
+                         runtime, viewport, verticalXs, verticalCount, horizontalYs,
+                         horizontalCount, result.changedViewports.outParam()) == SNOW_OK;
     return result;
 }
 
