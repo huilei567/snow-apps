@@ -289,16 +289,16 @@
     <context>
         <name>DrawingToolbarEditorSettingsWidget</name>
         <message>
+            <source>Annotation toolbar preview</source>
+            <translation>标注工具栏预览</translation>
+        </message>
+        <message>
             <source>Arrow</source>
             <translation>箭头</translation>
         </message>
         <message>
             <source>Drag tools here to hide them from the screenshot toolbar.</source>
             <translation>将工具拖到此处，即可在截图工具栏中隐藏它们。</translation>
-        </message>
-        <message>
-            <source>Drawing toolbar preview</source>
-            <translation>绘制工具栏预览</translation>
         </message>
         <message>
             <source>Drop beside a tool to create a position. Drop above a tool to stack it. The bottom tool stays on the main toolbar row. Separator Component occupies its own position.</source>
@@ -313,8 +313,8 @@
             <translation>滤镜</translation>
         </message>
         <message>
-            <source>Hidden drawing toolbar tools</source>
-            <translation>隐藏的绘制工具栏工具</translation>
+            <source>Hidden annotation toolbar tools</source>
+            <translation>隐藏的标注工具栏工具</translation>
         </message>
         <message>
             <source>Hidden tools</source>
@@ -367,6 +367,33 @@
         <message>
             <source>Watermark</source>
             <translation>水印</translation>
+        </message>
+    </context>
+    <context>
+        <name>FloatingToolbarEditorSettingsWidget</name>
+        <message>
+            <source>Drag tools here to hide them from the floating toolbar.</source>
+            <translation>将工具拖到此处，即可从悬浮工具栏中隐藏。</translation>
+        </message>
+        <message>
+            <source>Drop beside a tool to create a position. Drop above a tool to stack it. The bottom tool stays on the main toolbar row.</source>
+            <translation>拖到工具旁边可创建新位置，拖到工具上方可堆叠工具。最下方的工具显示在工具栏主行。</translation>
+        </message>
+        <message>
+            <source>Floating toolbar preview</source>
+            <translation>悬浮工具栏预览</translation>
+        </message>
+        <message>
+            <source>Hidden floating toolbar tools</source>
+            <translation>已隐藏的悬浮工具栏工具</translation>
+        </message>
+        <message>
+            <source>Hidden tools</source>
+            <translation>隐藏的工具</translation>
+        </message>
+        <message>
+            <source>No hidden tools</source>
+            <translation>没有隐藏的工具</translation>
         </message>
     </context>
     <context>
@@ -517,6 +544,33 @@
         <message>
             <source>macOS did not apply the launch-at-login change. Check Login Items in System Settings.</source>
             <translation>macOS 未应用登录时启动更改。请检查“系统设置”中的“登录项”。</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainWindowSkin</name>
+        <message>
+            <source>Choose a PNG, JPG, or WebP image.</source>
+            <translation>请选择 PNG、JPG 或 WebP 图像。</translation>
+        </message>
+        <message>
+            <source>Loading skin...</source>
+            <translation>正在加载皮肤...</translation>
+        </message>
+        <message>
+            <source>The skin image could not be decoded.</source>
+            <translation>无法解码皮肤图像。</translation>
+        </message>
+        <message>
+            <source>The skin image could not be opened.</source>
+            <translation>无法打开皮肤图像。</translation>
+        </message>
+        <message>
+            <source>The skin image exceeds 64 MiB.</source>
+            <translation>皮肤图像文件大小超过 64 MiB。</translation>
+        </message>
+        <message>
+            <source>The skin image exceeds processing limits.</source>
+            <translation>皮肤图像超出处理限制。</translation>
         </message>
     </context>
     <context>
@@ -733,6 +787,10 @@
             <source>The configuration could not be imported.</source>
             <translation>无法导入配置。</translation>
         </message>
+        <message>
+            <source>Translation service is unavailable</source>
+            <translation>翻译服务不可用</translation>
+        </message>
     </context>
     <context>
         <name>SettingsCatalog</name>
@@ -801,20 +859,12 @@
             <translation>83</translation>
         </message>
         <message>
-            <source>AI Model</source>
-            <translation>AI 模型</translation>
-        </message>
-        <message>
             <source>API Configuration</source>
             <translation>API 配置</translation>
         </message>
         <message>
             <source>API Key</source>
             <translation>API 密钥</translation>
-        </message>
-        <message>
-            <source>API Mode</source>
-            <translation>API 模式</translation>
         </message>
         <message>
             <source>API URL</source>
@@ -841,12 +891,32 @@
             <translation>辅助功能</translation>
         </message>
         <message>
+            <source>Accuracy First</source>
+            <translation>准确优先</translation>
+        </message>
+        <message>
             <source>Active window</source>
             <translation>活动窗口</translation>
         </message>
         <message>
             <source>Adjust MP4 quality and file size</source>
             <translation>调整 MP4 画质和文件大小</translation>
+        </message>
+        <message>
+            <source>Adjust the font size throughout the application</source>
+            <translation>调整整个应用的字体大小</translation>
+        </message>
+        <message>
+            <source>Adjust the image opacity for all three skins.</source>
+            <translation>调整三种皮肤的图像不透明度。</translation>
+        </message>
+        <message>
+            <source>Adjust the theme background opacity over all three skins to keep controls and text readable.</source>
+            <translation>调整三种皮肤上方的主题背景不透明度，以保持控件和文字清晰可读。</translation>
+        </message>
+        <message>
+            <source>Advanced capture</source>
+            <translation>高级捕获选项</translation>
         </message>
         <message>
             <source>Age</source>
@@ -901,6 +971,34 @@
             <translation>动图帧率</translation>
         </message>
         <message>
+            <source>Animated images</source>
+            <translation>动图</translation>
+        </message>
+        <message>
+            <source>Annotation</source>
+            <translation>标注</translation>
+        </message>
+        <message>
+            <source>Annotation mode</source>
+            <translation>标注模式</translation>
+        </message>
+        <message>
+            <source>Annotation shortcut</source>
+            <translation>标注快捷键</translation>
+        </message>
+        <message>
+            <source>Annotation toolbar</source>
+            <translation>标注工具栏</translation>
+        </message>
+        <message>
+            <source>Annotation toolbar settings</source>
+            <translation>标注工具栏设置</translation>
+        </message>
+        <message>
+            <source>Annotation tools</source>
+            <translation>标注工具</translation>
+        </message>
+        <message>
             <source>App Font</source>
             <translation>应用字体</translation>
         </message>
@@ -921,8 +1019,12 @@
             <translation>外观</translation>
         </message>
         <message>
-            <source>Appearance and language settings</source>
-            <translation>外观和语言设置</translation>
+            <source>Application language</source>
+            <translation>应用语言</translation>
+        </message>
+        <message>
+            <source>Application performance</source>
+            <translation>应用性能</translation>
         </message>
         <message>
             <source>Application priority</source>
@@ -931,6 +1033,10 @@
         <message>
             <source>Application shortcuts</source>
             <translation>应用快捷键</translation>
+        </message>
+        <message>
+            <source>Applies to all three skins. Overlay fills each surface and crops the edges. Contain shows the whole image.</source>
+            <translation>适用于三种皮肤。覆盖模式填满各个界面并裁剪边缘，适应模式显示完整图像。</translation>
         </message>
         <message>
             <source>Apply to recognized text when editing or copying</source>
@@ -973,6 +1079,14 @@
             <translation>自动保存图像文件名格式</translation>
         </message>
         <message>
+            <source>Auto-update on next launch</source>
+            <translation>下次启动时自动更新</translation>
+        </message>
+        <message>
+            <source>Automatic disabling</source>
+            <translation>自动禁用</translation>
+        </message>
+        <message>
             <source>Automatic text recognition</source>
             <translation>自动文本识别</translation>
         </message>
@@ -981,12 +1095,12 @@
             <translation>存在焦点全屏窗口时自动禁用</translation>
         </message>
         <message>
-            <source>BMP</source>
-            <translation>BMP</translation>
+            <source>Autostart</source>
+            <translation>开机自启</translation>
         </message>
         <message>
-            <source>Back up and restore application settings</source>
-            <translation>备份和恢复应用设置</translation>
+            <source>BMP</source>
+            <translation>BMP</translation>
         </message>
         <message>
             <source>Background</source>
@@ -995,6 +1109,14 @@
         <message>
             <source>Background Fill</source>
             <translation>背景填充</translation>
+        </message>
+        <message>
+            <source>Background image</source>
+            <translation>背景图像</translation>
+        </message>
+        <message>
+            <source>Backup</source>
+            <translation>备份</translation>
         </message>
         <message>
             <source>Backup settings</source>
@@ -1021,6 +1143,18 @@
             <translation>边框颜色</translation>
         </message>
         <message>
+            <source>Bottom center</source>
+            <translation>底部居中</translation>
+        </message>
+        <message>
+            <source>Bottom left</source>
+            <translation>左下角</translation>
+        </message>
+        <message>
+            <source>Bottom right</source>
+            <translation>右下角</translation>
+        </message>
+        <message>
             <source>Browse</source>
             <translation>浏览</translation>
         </message>
@@ -1041,8 +1175,20 @@
             <translation>取消截图</translation>
         </message>
         <message>
+            <source>Canvas Style Configuration</source>
+            <translation>画布样式配置</translation>
+        </message>
+        <message>
             <source>Capture</source>
             <translation>截图</translation>
+        </message>
+        <message>
+            <source>Capture &amp; annotation</source>
+            <translation>截图与标注</translation>
+        </message>
+        <message>
+            <source>Capture APIs, window detection and color compatibility</source>
+            <translation>捕获接口、窗口检测与色彩兼容性</translation>
         </message>
         <message>
             <source>Capture UI during scrolling screenshots</source>
@@ -1057,12 +1203,16 @@
             <translation>捕获后端</translation>
         </message>
         <message>
-            <source>Capture cursor</source>
-            <translation>捕获光标</translation>
+            <source>Capture content</source>
+            <translation>捕获内容</translation>
         </message>
         <message>
             <source>Capture every monitor and copy the monitor under the pointer</source>
             <translation>截取所有显示器并复制指针所在显示器</translation>
+        </message>
+        <message>
+            <source>Capture interface</source>
+            <translation>截图界面</translation>
         </message>
         <message>
             <source>Capture screenshots and record your screen and system audio.</source>
@@ -1077,8 +1227,20 @@
             <translation>录制时捕获工具栏</translation>
         </message>
         <message>
+            <source>Center</source>
+            <translation>居中</translation>
+        </message>
+        <message>
+            <source>Center left</source>
+            <translation>左侧居中</translation>
+        </message>
+        <message>
             <source>Center on mouse position</source>
             <translation>以鼠标位置为中心</translation>
+        </message>
+        <message>
+            <source>Center right</source>
+            <translation>右侧居中</translation>
         </message>
         <message>
             <source>Check automatically</source>
@@ -1091,6 +1253,14 @@
         <message>
             <source>Child elements</source>
             <translation>子元素</translation>
+        </message>
+        <message>
+            <source>Choose an image for Snow Shot's custom tray menu. Native system menus keep their system appearance. Clear the path to remove this skin.</source>
+            <translation>为 Snow Shot 自定义托盘菜单选择图像。系统原生菜单保留系统外观。清空路径可移除此皮肤。</translation>
+        </message>
+        <message>
+            <source>Choose an image for the screenshot, pin-to-screen, full-screen canvas and screen recording toolbar rows. Clear the path to remove this skin.</source>
+            <translation>为截图、固定到屏幕窗口、全屏画布和屏幕录制工具栏选择图像。清空路径可移除此皮肤。</translation>
         </message>
         <message>
             <source>Choose how much execution time the application receives</source>
@@ -1109,6 +1279,10 @@
             <translation>控制调整选区大小时拖动的边框如何跟随鼠标</translation>
         </message>
         <message>
+            <source>Choose how updates are downloaded and installed</source>
+            <translation>选择更新的下载和安装方式</translation>
+        </message>
+        <message>
             <source>Choose the OCR model version and size to balance recognition speed and accuracy</source>
             <translation>选择 OCR 模型版本和大小，以平衡识别速度和准确率</translation>
         </message>
@@ -1117,16 +1291,16 @@
             <translation>选择双击固定到屏幕的截图可拖动区域时执行的操作</translation>
         </message>
         <message>
-            <source>Choose the action for double-clicking while moving or drawing in a screenshot</source>
-            <translation>选择在截图中移动或绘制时双击执行的操作</translation>
+            <source>Choose the action for double-clicking while moving or annotating in a screenshot</source>
+            <translation>选择在截图中移动或标注时双击执行的操作</translation>
         </message>
         <message>
             <source>Choose the action for middle-clicking a draggable area of a pinned screenshot</source>
             <translation>选择在固定到屏幕的截图可拖动区域单击鼠标中键时执行的操作</translation>
         </message>
         <message>
-            <source>Choose the action for middle-clicking while moving or drawing in a screenshot</source>
-            <translation>选择在截图中移动或绘制时单击鼠标中键执行的操作</translation>
+            <source>Choose the action for middle-clicking while moving or annotating in a screenshot</source>
+            <translation>选择在截图中移动或标注时单击鼠标中键执行的操作</translation>
         </message>
         <message>
             <source>Choose the bundled icon used in the system tray</source>
@@ -1165,6 +1339,10 @@
             <translation>选择系统托盘菜单中显示的功能</translation>
         </message>
         <message>
+            <source>Choose the image alignment within this surface.</source>
+            <translation>选择图像在此界面内的对齐位置。</translation>
+        </message>
+        <message>
             <source>Choose the page size for manually and automatically saved PDF files</source>
             <translation>选择手动和自动保存 PDF 文件时使用的页面大小</translation>
         </message>
@@ -1173,8 +1351,16 @@
             <translation>选择常规截图的首选 API；自动模式在 HDR 显示器上使用 DXGI，其他情况下使用 GDI</translation>
         </message>
         <message>
+            <source>Choose the preferred capture API for screen recording</source>
+            <translation>选择屏幕录制优先使用的捕获接口</translation>
+        </message>
+        <message>
             <source>Choose the primary color used throughout the theme</source>
             <translation>选择整个主题使用的主色</translation>
+        </message>
+        <message>
+            <source>Choose the primary language for translation</source>
+            <translation>选择翻译的主要目标语言</translation>
         </message>
         <message>
             <source>Choose the scheduling level for the interface and application workers. Changes take effect after restarting Snow Shot.</source>
@@ -1187,6 +1373,14 @@
         <message>
             <source>Choose the size of the screenshot, pinned, and recording toolbars</source>
             <translation>选择截图、固定到屏幕和屏幕录制工具栏的大小</translation>
+        </message>
+        <message>
+            <source>Choose the source language or detect it automatically</source>
+            <translation>选择源语言或自动检测</translation>
+        </message>
+        <message>
+            <source>Choose the translation service or AI model</source>
+            <translation>选择翻译服务或 AI 模型</translation>
         </message>
         <message>
             <source>Choose the video encoder</source>
@@ -1301,10 +1495,6 @@
             <translation>压缩级别</translation>
         </message>
         <message>
-            <source>Configuration</source>
-            <translation>配置</translation>
-        </message>
-        <message>
             <source>Configuration exported to the clipboard.</source>
             <translation>配置已导出到剪贴板。</translation>
         </message>
@@ -1313,16 +1503,8 @@
             <translation>配置已导入。</translation>
         </message>
         <message>
-            <source>Configure application process behavior</source>
-            <translation>配置应用程序进程行为</translation>
-        </message>
-        <message>
-            <source>Configure custom AI models and text translation services</source>
-            <translation>配置自定义 AI 模型和文本翻译服务</translation>
-        </message>
-        <message>
-            <source>Configure drawing tools and the screenshot drawing toolbar</source>
-            <translation>配置绘制工具和截图绘制工具栏</translation>
+            <source>Configure annotation tools and the screenshot annotation toolbar</source>
+            <translation>配置标注工具和截图标注工具栏</translation>
         </message>
         <message>
             <source>Configure mouse combinations for screenshot actions</source>
@@ -1331,14 +1513,6 @@
         <message>
             <source>Configure proxy use for network requests</source>
             <translation>配置网络请求的代理使用方式</translation>
-        </message>
-        <message>
-            <source>Configure screenshot behavior</source>
-            <translation>配置截图行为</translation>
-        </message>
-        <message>
-            <source>Configure screenshot editor shortcut keys</source>
-            <translation>配置截图编辑器快捷键</translation>
         </message>
         <message>
             <source>Configure text recognition models and acceleration</source>
@@ -1357,12 +1531,16 @@
             <translation>将 AI 客户端连接到 Snow Shot</translation>
         </message>
         <message>
+            <source>Contain</source>
+            <translation>适应</translation>
+        </message>
+        <message>
             <source>Control when the screenshot color picker is visible</source>
             <translation>控制截图颜色拾取器何时显示</translation>
         </message>
         <message>
-            <source>Copy all application settings as a zip archive to the clipboard</source>
-            <translation>将全部应用设置打包为 zip 压缩包并复制到剪贴板</translation>
+            <source>Copy application settings as a zip archive to the clipboard</source>
+            <translation>将应用设置以 zip 归档形式复制到剪贴板</translation>
         </message>
         <message>
             <source>Copy color</source>
@@ -1413,10 +1591,6 @@
             <translation>复制到剪贴板</translation>
         </message>
         <message>
-            <source>Core</source>
-            <translation>核心</translation>
-        </message>
-        <message>
             <source>Core application settings</source>
             <translation>核心应用程序设置</translation>
         </message>
@@ -1427,6 +1601,10 @@
         <message>
             <source>Cursor guide line color</source>
             <translation>光标辅助线颜色</translation>
+        </message>
+        <message>
+            <source>Custom AI models</source>
+            <translation>自定义 AI 模型</translation>
         </message>
         <message>
             <source>Custom DeepL, Baidu, and Youdao-compatible services</source>
@@ -1455,6 +1633,18 @@
         <message>
             <source>Custom translation endpoints and concurrency</source>
             <translation>自定义翻译端点和并发数</translation>
+        </message>
+        <message>
+            <source>Customize floating toolbar tools</source>
+            <translation>自定义悬浮工具栏中的工具</translation>
+        </message>
+        <message>
+            <source>Customize the main interface, toolbar rows and custom tray menu</source>
+            <translation>自定义主界面、工具栏和自定义托盘菜单</translation>
+        </message>
+        <message>
+            <source>Customize the pinned window toolbar</source>
+            <translation>自定义贴图窗口工具栏</translation>
         </message>
         <message>
             <source>DXGI</source>
@@ -1533,6 +1723,10 @@
             <translation>删除屏幕录制临时文件？</translation>
         </message>
         <message>
+            <source>Desktop access to your capture tools</source>
+            <translation>在桌面快速使用截图工具</translation>
+        </message>
+        <message>
             <source>Destroy</source>
             <translation>销毁</translation>
         </message>
@@ -1565,6 +1759,10 @@
             <translation>磁盘用量</translation>
         </message>
         <message>
+            <source>Display the original image beside recognition and translation results.</source>
+            <translation>在识别和翻译结果旁显示原始图像。</translation>
+        </message>
+        <message>
             <source>Display translated text in the original image</source>
             <translation>在原始图像中显示翻译后的文字</translation>
         </message>
@@ -1581,12 +1779,8 @@
             <translation>自动下载</translation>
         </message>
         <message>
-            <source>Download new versions automatically and ask before restarting</source>
-            <translation>自动下载新版本，并在重启前询问</translation>
-        </message>
-        <message>
-            <source>Drag drawing tools to reorder them or stack them in the same toolbar position.</source>
-            <translation>拖动绘制工具可重新排序，或将它们堆叠到同一工具栏位置。</translation>
+            <source>Drag annotation tools to reorder them or stack them in the same toolbar position.</source>
+            <translation>拖动标注工具可重新排序，或将它们堆叠到同一工具栏位置。</translation>
         </message>
         <message>
             <source>Drag pinned tools to reorder them or stack them in the same toolbar position.</source>
@@ -1597,32 +1791,24 @@
             <translation>拖动截图工具可重新排序，或将它们堆叠到同一工具栏位置。</translation>
         </message>
         <message>
-            <source>Draw a dashed crosshair at the pointer while selecting</source>
-            <translation>选择时在鼠标指针处绘制虚线十字辅助线</translation>
+            <source>Drag tools to reorder, group, or hide them on the floating toolbar.</source>
+            <translation>拖动工具可调整悬浮工具栏中的顺序、分组或隐藏工具。</translation>
         </message>
         <message>
-            <source>Draw a solid crosshair at the active monitor center while selecting</source>
-            <translation>选择时在当前显示器中心绘制实线十字辅助线</translation>
+            <source>Draw a dashed crosshair at the pointer while guides are enabled</source>
+            <translation>启用辅助线时在鼠标指针处绘制虚线十字辅助线</translation>
+        </message>
+        <message>
+            <source>Draw a solid crosshair at the active monitor center while guides are enabled</source>
+            <translation>启用辅助线时在当前显示器中心绘制实线十字辅助线</translation>
+        </message>
+        <message>
+            <source>Draw a solid crosshair at the screenshot selection center</source>
+            <translation>在截图选区中心绘制实线十字辅助线</translation>
         </message>
         <message>
             <source>Draw four guide segments around the sampled center pixel</source>
             <translation>在取样中心像素周围绘制四段辅助线</translation>
-        </message>
-        <message>
-            <source>Drawing</source>
-            <translation>绘制</translation>
-        </message>
-        <message>
-            <source>Drawing mode</source>
-            <translation>绘制模式</translation>
-        </message>
-        <message>
-            <source>Drawing shortcut</source>
-            <translation>绘制快捷键</translation>
-        </message>
-        <message>
-            <source>Drawing toolbar settings</source>
-            <translation>绘制工具栏设置</translation>
         </message>
         <message>
             <source>Edit selection</source>
@@ -1649,12 +1835,16 @@
             <translation>编码器</translation>
         </message>
         <message>
+            <source>Encoding options</source>
+            <translation>编码选项</translation>
+        </message>
+        <message>
             <source>Encoding preset</source>
             <translation>编码预设</translation>
         </message>
         <message>
             <source>End recording</source>
-            <translation>结束录屏</translation>
+            <translation>结束屏幕录制</translation>
         </message>
         <message>
             <source>Enlarge short side (more detail)</source>
@@ -1667,6 +1857,10 @@
         <message>
             <source>Enter or browse to a PNG or ICO file; invalid files use the selected bundled icon</source>
             <translation>输入或浏览选择 PNG 或 ICO 文件；无效文件将使用所选内置图标</translation>
+        </message>
+        <message>
+            <source>Enter or browse to a PNG, JPG or WebP image for the main interface. Clear the path to remove this skin.</source>
+            <translation>输入或浏览选择用于主界面的 PNG、JPG 或 WebP 图像。清空路径可移除此皮肤。</translation>
         </message>
         <message>
             <source>Eraser</source>
@@ -1685,12 +1879,16 @@
             <translation>导出</translation>
         </message>
         <message>
+            <source>Export &amp; storage</source>
+            <translation>导出与存储</translation>
+        </message>
+        <message>
             <source>Export configuration</source>
             <translation>导出配置</translation>
         </message>
         <message>
             <source>Export recording</source>
-            <translation>导出录屏</translation>
+            <translation>导出屏幕录制</translation>
         </message>
         <message>
             <source>Export settings</source>
@@ -1741,6 +1939,14 @@
             <translation>垂直翻转</translation>
         </message>
         <message>
+            <source>Floating toolbar</source>
+            <translation>悬浮工具栏</translation>
+        </message>
+        <message>
+            <source>Floating toolbar settings</source>
+            <translation>悬浮工具栏设置</translation>
+        </message>
+        <message>
             <source>Focused window</source>
             <translation>焦点窗口</translation>
         </message>
@@ -1757,6 +1963,10 @@
             <translation>跟随系统</translation>
         </message>
         <message>
+            <source>Font Size</source>
+            <translation>字体大小</translation>
+        </message>
+        <message>
             <source>Frame rate</source>
             <translation>帧率</translation>
         </message>
@@ -1767,10 +1977,6 @@
         <message>
             <source>Full-screen canvas (enable/disable click-through)</source>
             <translation>全屏画布（开启/关闭鼠标穿透）</translation>
-        </message>
-        <message>
-            <source>Full-width</source>
-            <translation>全角</translation>
         </message>
         <message>
             <source>Fullscreen suppression</source>
@@ -1785,12 +1991,24 @@
             <translation>GDI</translation>
         </message>
         <message>
+            <source>GIF</source>
+            <translation>GIF</translation>
+        </message>
+        <message>
+            <source>GIF frame rate</source>
+            <translation>GIF 帧率</translation>
+        </message>
+        <message>
+            <source>GIF, APNG and WebP resolution, frame rate and looping</source>
+            <translation>GIF、APNG 和 WebP 的分辨率、帧率与循环播放</translation>
+        </message>
+        <message>
             <source>GPU acceleration</source>
             <translation>GPU 加速</translation>
         </message>
         <message>
             <source>General</source>
-            <translation>常用</translation>
+            <translation>常规</translation>
         </message>
         <message>
             <source>General system integration settings</source>
@@ -1817,6 +2035,10 @@
             <translation>全局鼠标</translation>
         </message>
         <message>
+            <source>Global mouse gestures</source>
+            <translation>全局鼠标手势</translation>
+        </message>
+        <message>
             <source>Group recognized text before translating</source>
             <translation>翻译前整理识别出的文本</translation>
         </message>
@@ -1831,10 +2053,6 @@
         <message>
             <source>H.265</source>
             <translation>H.265</translation>
-        </message>
-        <message>
-            <source>Half-width</source>
-            <translation>半角</translation>
         </message>
         <message>
             <source>Hidden tools</source>
@@ -1869,12 +2087,16 @@
             <translation>焦点窗口占满整个显示器时忽略全局快捷键</translation>
         </message>
         <message>
-            <source>Image Export</source>
+            <source>Image export</source>
             <translation>图像导出</translation>
         </message>
         <message>
             <source>Image files (*.png *.ico);;PNG images (*.png);;Icon files (*.ico)</source>
             <translation>图像文件 (*.png *.ico);;PNG 图像 (*.png);;图标文件 (*.ico)</translation>
+        </message>
+        <message>
+            <source>Image files (*.png *.jpg *.jpeg *.webp);;PNG images (*.png);;JPG images (*.jpg *.jpeg);;WebP images (*.webp)</source>
+            <translation>图像文件 (*.png *.jpg *.jpeg *.webp);;PNG 图像 (*.png);;JPG 图像 (*.jpg *.jpeg);;WebP 图像 (*.webp)</translation>
         </message>
         <message>
             <source>Image format</source>
@@ -1909,12 +2131,16 @@
             <translation>导入设置</translation>
         </message>
         <message>
+            <source>Include saved annotation styles in the configuration archive</source>
+            <translation>在配置归档中包含已保存的标注样式</translation>
+        </message>
+        <message>
             <source>Include the displayed text recognition or original-image translation result when saving an image.</source>
             <translation>保存图片时包含当前显示的文字识别或原图翻译结果。</translation>
         </message>
         <message>
-            <source>Include the mouse cursor in normal screenshots.</source>
-            <translation>在常规截图中包含鼠标光标。</translation>
+            <source>Include the pointer and capture controls in screenshots</source>
+            <translation>在截图中包含鼠标指针和截图控件</translation>
         </message>
         <message>
             <source>Include the screen recording toolbar in the recorded video.</source>
@@ -1937,12 +2163,12 @@
             <translation>输入监控</translation>
         </message>
         <message>
-            <source>Interface settings</source>
-            <translation>界面设置</translation>
+            <source>Interaction</source>
+            <translation>操作方式</translation>
         </message>
         <message>
-            <source>Interface settings page</source>
-            <translation>界面设置页面</translation>
+            <source>Interface settings</source>
+            <translation>界面设置</translation>
         </message>
         <message>
             <source>JPEG</source>
@@ -1961,10 +2187,6 @@
             <translation>保留已关闭窗口以便恢复；禁用不会删除现有记录</translation>
         </message>
         <message>
-            <source>Keep line breaks</source>
-            <translation>保留换行</translation>
-        </message>
-        <message>
             <source>Keep records permanently</source>
             <translation>永久保留记录</translation>
         </message>
@@ -1981,12 +2203,24 @@
             <translation>保持识别进程运行以避免启动延迟，空闲时会占用内存。</translation>
         </message>
         <message>
+            <source>Keyboard shortcuts</source>
+            <translation>键盘快捷键</translation>
+        </message>
+        <message>
+            <source>Keyboard shortcuts used within Snow Shot tools</source>
+            <translation>Snow Shot 工具内使用的键盘快捷键</translation>
+        </message>
+        <message>
             <source>Landscape A4</source>
             <translation>横向 A4</translation>
         </message>
         <message>
             <source>Language</source>
             <translation>语言</translation>
+        </message>
+        <message>
+            <source>Language, startup and updates</source>
+            <translation>语言、启动与更新</translation>
         </message>
         <message>
             <source>Last used tool</source>
@@ -2061,6 +2295,14 @@
             <translation>放大镜可见性</translation>
         </message>
         <message>
+            <source>Main Interface Skin Path</source>
+            <translation>主界面皮肤路径</translation>
+        </message>
+        <message>
+            <source>Main Interface Skin Position</source>
+            <translation>主界面皮肤位置</translation>
+        </message>
+        <message>
             <source>Manage Snow Shot's login permission in macOS System Settings</source>
             <translation>在 macOS 系统设置中管理 Snow Shot 的登录权限</translation>
         </message>
@@ -2075,6 +2317,10 @@
         <message>
             <source>Manual save image filename format</source>
             <translation>手动保存图像文件名格式</translation>
+        </message>
+        <message>
+            <source>Mask Opacity</source>
+            <translation>遮罩不透明度</translation>
         </message>
         <message>
             <source>Match your system appearance or choose a light or dark theme</source>
@@ -2145,6 +2391,10 @@
             <translation>截图操作的鼠标组合</translation>
         </message>
         <message>
+            <source>Mouse pointer</source>
+            <translation>鼠标指针</translation>
+        </message>
+        <message>
             <source>Mouse wheel zoom mode</source>
             <translation>鼠标滚轮缩放模式</translation>
         </message>
@@ -2169,8 +2419,16 @@
             <translation>移动整个选区</translation>
         </message>
         <message>
-            <source>Network</source>
-            <translation>网络</translation>
+            <source>Network &amp; connections</source>
+            <translation>网络与连接</translation>
+        </message>
+        <message>
+            <source>Network access and AI-client connections</source>
+            <translation>网络访问与 AI 客户端连接</translation>
+        </message>
+        <message>
+            <source>Network access, online providers and AI-client connections</source>
+            <translation>网络访问、在线服务与 AI 客户端连接</translation>
         </message>
         <message>
             <source>Network proxy</source>
@@ -2209,6 +2467,10 @@
             <translation>OCR 模型</translation>
         </message>
         <message>
+            <source>OCR models &amp; performance</source>
+            <translation>OCR 模型与性能</translation>
+        </message>
+        <message>
             <source>Only when displayed</source>
             <translation>仅在显示时</translation>
         </message>
@@ -2217,16 +2479,16 @@
             <translation>打开</translation>
         </message>
         <message>
-            <source>Open Function Settings</source>
-            <translation>打开功能设置</translation>
-        </message>
-        <message>
             <source>Open Login Items Settings</source>
             <translation>打开登录项设置</translation>
         </message>
         <message>
             <source>Open a canvas on the current display or toggle click-through</source>
             <translation>在当前显示器上打开画布或切换鼠标穿透</translation>
+        </message>
+        <message>
+            <source>Open screenshot settings</source>
+            <translation>打开截图设置</translation>
         </message>
         <message>
             <source>Open selected text translation in a standalone window.</source>
@@ -2267,6 +2529,10 @@
         <message>
             <source>Other application shortcuts and actions</source>
             <translation>其它应用程序快捷键和操作</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>覆盖</translation>
         </message>
         <message>
             <source>PDF</source>
@@ -2369,6 +2635,10 @@
             <translation>固定到屏幕快捷键和操作</translation>
         </message>
         <message>
+            <source>Pin-to-screen management</source>
+            <translation>固定到屏幕管理</translation>
+        </message>
+        <message>
             <source>Pinned screenshot window appearance settings</source>
             <translation>固定到屏幕窗口外观设置</translation>
         </message>
@@ -2381,8 +2651,16 @@
             <translation>固定到屏幕窗口激活边框</translation>
         </message>
         <message>
+            <source>Pinned window behavior, appearance and tools</source>
+            <translation>固定到屏幕窗口的行为、外观与工具</translation>
+        </message>
+        <message>
             <source>Pinned window border</source>
             <translation>固定到屏幕窗口边框</translation>
+        </message>
+        <message>
+            <source>Pinned-window shortcuts</source>
+            <translation>固定到屏幕窗口快捷键</translation>
         </message>
         <message>
             <source>Play a shutter sound when capturing the focused window or current display.</source>
@@ -2417,8 +2695,16 @@
             <translation>上一条截图历史</translation>
         </message>
         <message>
+            <source>Primary Target Language</source>
+            <translation>主要目标语言</translation>
+        </message>
+        <message>
             <source>Process priority</source>
             <translation>进程优先级</translation>
+        </message>
+        <message>
+            <source>Prompt-capable models use this language when the input matches the primary target language</source>
+            <translation>支持提示词的模型会在输入语言与主要目标语言一致时使用此语言</translation>
         </message>
         <message>
             <source>Proxy</source>
@@ -2449,6 +2735,18 @@
             <translation>重新截图</translation>
         </message>
         <message>
+            <source>Recognition &amp; actions</source>
+            <translation>识别与操作</translation>
+        </message>
+        <message>
+            <source>Recognition output</source>
+            <translation>识别结果</translation>
+        </message>
+        <message>
+            <source>Recognition shortcuts</source>
+            <translation>识别快捷键</translation>
+        </message>
+        <message>
             <source>Recognize QR codes automatically after confirming the screenshot selection area.</source>
             <translation>确认截图选区后自动识别二维码。</translation>
         </message>
@@ -2469,6 +2767,10 @@
             <translation>识别确认截图选区中的文本</translation>
         </message>
         <message>
+            <source>Recognized text and language tools</source>
+            <translation>识别文本与语言工具</translation>
+        </message>
+        <message>
             <source>Record screen</source>
             <translation>录制屏幕</translation>
         </message>
@@ -2477,8 +2779,20 @@
             <translation>录制独立音轨</translation>
         </message>
         <message>
+            <source>Record video</source>
+            <translation>录制视频</translation>
+        </message>
+        <message>
             <source>Record/Copy Video</source>
             <translation>录制/复制视频</translation>
+        </message>
+        <message>
+            <source>Recording capture API</source>
+            <translation>录制捕获 API</translation>
+        </message>
+        <message>
+            <source>Recording content</source>
+            <translation>录制内容</translation>
         </message>
         <message>
             <source>Recording folder</source>
@@ -2489,12 +2803,16 @@
             <translation>录制输出位置和文件名设置</translation>
         </message>
         <message>
+            <source>Recording shortcuts</source>
+            <translation>屏幕录制快捷键</translation>
+        </message>
+        <message>
             <source>Recording temporary files</source>
             <translation>屏幕录制临时文件</translation>
         </message>
         <message>
             <source>Recording toggle</source>
-            <translation>开始/复制录屏</translation>
+            <translation>开始/复制屏幕录制</translation>
         </message>
         <message>
             <source>Recording toolbar</source>
@@ -2527,10 +2845,6 @@
         <message>
             <source>Remove leftover recording working files that are no longer needed</source>
             <translation>删除不再需要的屏幕录制遗留工作文件</translation>
-        </message>
-        <message>
-            <source>Remove line breaks</source>
-            <translation>移除换行</translation>
         </message>
         <message>
             <source>Remove screenshots</source>
@@ -2649,6 +2963,14 @@
             <translation>保存历史记录</translation>
         </message>
         <message>
+            <source>Save location</source>
+            <translation>保存位置</translation>
+        </message>
+        <message>
+            <source>Save locations, clipboard behavior, history and cleanup</source>
+            <translation>保存位置、剪贴板行为、历史与清理</translation>
+        </message>
+        <message>
             <source>Save recognition result as image</source>
             <translation>将识别结果保存为图片</translation>
         </message>
@@ -2677,10 +2999,6 @@
             <translation>屏幕截图</translation>
         </message>
         <message>
-            <source>Screen capture settings</source>
-            <translation>屏幕截图设置</translation>
-        </message>
-        <message>
             <source>Screen recording</source>
             <translation>屏幕录制</translation>
         </message>
@@ -2702,7 +3020,7 @@
         </message>
         <message>
             <source>Screen recording shortcut</source>
-            <translation>录屏快捷键</translation>
+            <translation>屏幕录制快捷键</translation>
         </message>
         <message>
             <source>Screen recording shortcuts and actions</source>
@@ -2721,8 +3039,16 @@
             <translation>截图区域类型提示</translation>
         </message>
         <message>
+            <source>Screenshot capture API</source>
+            <translation>截图捕获 API</translation>
+        </message>
+        <message>
             <source>Screenshot count</source>
             <translation>截图数量</translation>
+        </message>
+        <message>
+            <source>Screenshot folder</source>
+            <translation>截图文件夹</translation>
         </message>
         <message>
             <source>Screenshot history</source>
@@ -2749,6 +3075,10 @@
             <translation>截图快捷键</translation>
         </message>
         <message>
+            <source>Screenshot shortcuts</source>
+            <translation>截图快捷键</translation>
+        </message>
+        <message>
             <source>Screenshot shortcuts and actions</source>
             <translation>截图快捷键和操作</translation>
         </message>
@@ -2765,8 +3095,16 @@
             <translation>截图翻译设置</translation>
         </message>
         <message>
+            <source>Screenshots</source>
+            <translation>截图</translation>
+        </message>
+        <message>
             <source>Scrolling screenshot</source>
             <translation>滚动截图</translation>
+        </message>
+        <message>
+            <source>Secondary Target Language</source>
+            <translation>次要目标语言</translation>
         </message>
         <message>
             <source>Select child elements within a window while taking a screenshot</source>
@@ -2779,6 +3117,10 @@
         <message>
             <source>Select previously selected area</source>
             <translation>选择之前选中的区域</translation>
+        </message>
+        <message>
+            <source>Select skin image</source>
+            <translation>选择皮肤图像</translation>
         </message>
         <message>
             <source>Select the language used throughout the application</source>
@@ -2801,6 +3143,14 @@
             <translation>选择窗口/窗口子元素</translation>
         </message>
         <message>
+            <source>Selection Aspect Ratio Snap</source>
+            <translation>选区宽高比吸附</translation>
+        </message>
+        <message>
+            <source>Selection Center Guide Color</source>
+            <translation>选区中心辅助线颜色</translation>
+        </message>
+        <message>
             <source>Selection animation</source>
             <translation>选区动画</translation>
         </message>
@@ -2815,6 +3165,10 @@
         <message>
             <source>Selection resize mode</source>
             <translation>选区大小调整模式</translation>
+        </message>
+        <message>
+            <source>Selection, capture guides and annotation tools</source>
+            <translation>选区、截图辅助线与标注工具</translation>
         </message>
         <message>
             <source>Serial number</source>
@@ -2843,6 +3197,10 @@
         <message>
             <source>Set the color and opacity outside the screenshot selection</source>
             <translation>设置截图选区外区域的颜色和不透明度</translation>
+        </message>
+        <message>
+            <source>Set the floating toolbar opacity when the mouse is not hovering over it</source>
+            <translation>设置鼠标未悬停时浮动工具栏的不透明度</translation>
         </message>
         <message>
             <source>Set the frame rate of exported animated images</source>
@@ -2878,15 +3236,15 @@
         </message>
         <message>
             <source>Set up to two keys for this recording action</source>
-            <translation>为此录屏操作设置最多两个快捷键</translation>
+            <translation>为此屏幕录制操作设置最多两个快捷键</translation>
         </message>
         <message>
             <source>Set up to two keys for this screenshot action</source>
             <translation>为此截图操作设置最多两个按键</translation>
         </message>
         <message>
-            <source>Set up to two keys for this screenshot drawing tool</source>
-            <translation>为此截图绘制工具设置最多两个按键</translation>
+            <source>Set up to two keys for this screenshot annotation tool</source>
+            <translation>为此截图标注工具设置最多两个按键</translation>
         </message>
         <message>
             <source>Settings</source>
@@ -2902,15 +3260,15 @@
         </message>
         <message>
             <source>Shared image export settings for screenshot and pin-to-screen windows</source>
-            <translation>截图窗口和贴图窗口共用的图像导出设置</translation>
+            <translation>截图窗口和固定到屏幕窗口共用的图像导出设置</translation>
         </message>
         <message>
             <source>Shortcut hint opacity</source>
             <translation>快捷键提示不透明度</translation>
         </message>
         <message>
-            <source>Shortcut keys for drawing tools</source>
-            <translation>绘制工具快捷键</translation>
+            <source>Shortcut keys for annotation tools</source>
+            <translation>标注工具快捷键</translation>
         </message>
         <message>
             <source>Shortcut keys for pinned-to-screen windows</source>
@@ -2922,11 +3280,19 @@
         </message>
         <message>
             <source>Shortcut keys for recording controls</source>
-            <translation>录屏控制快捷键</translation>
+            <translation>屏幕录制控制快捷键</translation>
         </message>
         <message>
             <source>Shortcut keys for screenshot tools and cursor movement</source>
             <translation>截图工具和光标移动的快捷键</translation>
+        </message>
+        <message>
+            <source>Show Cursor</source>
+            <translation>显示光标</translation>
+        </message>
+        <message>
+            <source>Show Guides by Default</source>
+            <translation>默认显示辅助线</translation>
         </message>
         <message>
             <source>Show a button in the text recognition toolbar that sends recognized text to the Translation page.</source>
@@ -2945,8 +3311,20 @@
             <translation>显示主窗口</translation>
         </message>
         <message>
+            <source>Show original image preview</source>
+            <translation>显示原图预览</translation>
+        </message>
+        <message>
+            <source>Show screenshot guides when a capture starts</source>
+            <translation>开始截图时显示辅助线</translation>
+        </message>
+        <message>
             <source>Show text recognition results</source>
             <translation>显示文本识别结果</translation>
+        </message>
+        <message>
+            <source>Show the annotation and close buttons in the upper-right corner of pinned windows</source>
+            <translation>显示固定到屏幕窗口右上角的标注和关闭按钮</translation>
         </message>
         <message>
             <source>Show the application icon and menu in the system tray</source>
@@ -2957,8 +3335,40 @@
             <translation>在截图窗口顶部显示区域类型提示</translation>
         </message>
         <message>
+            <source>Show the captured mouse cursor by default in new normal screenshots.</source>
+            <translation>在新的普通截图中默认显示捕获的鼠标光标。</translation>
+        </message>
+        <message>
+            <source>Show the floating toolbar on the desktop</source>
+            <translation>在桌面上显示悬浮工具栏</translation>
+        </message>
+        <message>
+            <source>Show toolbar</source>
+            <translation>显示工具栏</translation>
+        </message>
+        <message>
+            <source>Show window buttons</source>
+            <translation>显示窗口按钮</translation>
+        </message>
+        <message>
             <source>Shutter Sound Notification</source>
             <translation>快门声音通知</translation>
+        </message>
+        <message>
+            <source>Skin Blur Level</source>
+            <translation>皮肤模糊程度</translation>
+        </message>
+        <message>
+            <source>Skin Display Mode</source>
+            <translation>皮肤显示模式</translation>
+        </message>
+        <message>
+            <source>Skin Opacity</source>
+            <translation>皮肤不透明度</translation>
+        </message>
+        <message>
+            <source>Skins</source>
+            <translation>皮肤</translation>
         </message>
         <message>
             <source>Small</source>
@@ -3005,6 +3415,10 @@
             <translation>雪花浅色</translation>
         </message>
         <message>
+            <source>Soften all three skin images with blur.</source>
+            <translation>通过模糊柔化三种皮肤图像。</translation>
+        </message>
+        <message>
             <source>Software updates</source>
             <translation>软件更新</translation>
         </message>
@@ -3013,12 +3427,24 @@
             <translation>软件版本与许可证信息</translation>
         </message>
         <message>
+            <source>Source Language</source>
+            <translation>源语言</translation>
+        </message>
+        <message>
+            <source>Speed First</source>
+            <translation>速度优先</translation>
+        </message>
+        <message>
+            <source>Speed First reduces computation on short text and may change recognition results.</source>
+            <translation>速度优先会减少短文字的计算量，并可能改变识别结果。</translation>
+        </message>
+        <message>
             <source>Spotlight</source>
             <translation>聚光灯</translation>
         </message>
         <message>
-            <source>Stack drawing tools</source>
-            <translation>堆叠绘制工具</translation>
+            <source>Stack annotation tools</source>
+            <translation>堆叠标注工具</translation>
         </message>
         <message>
             <source>Stack screenshot tools</source>
@@ -3049,20 +3475,20 @@
             <translation>开始屏幕录制，或停止并复制当前录制内容</translation>
         </message>
         <message>
-            <source>Start new screenshot sessions and pin drawing mode with the last used drawing tool instead of the move tool</source>
-            <translation>开始新的截图会话或进入固定到屏幕绘制模式时，自动启用上次使用的绘图工具，而不是移动工具</translation>
+            <source>Start new screenshot sessions and pin-to-screen annotation mode with the last used annotation tool instead of the move tool</source>
+            <translation>开始新的截图会话或进入固定到屏幕标注模式时，自动启用上次使用的标注工具，而不是移动工具</translation>
         </message>
         <message>
             <source>Start/pause/resume recording</source>
-            <translation>开始/暂停/继续录屏</translation>
+            <translation>开始/暂停/继续屏幕录制</translation>
+        </message>
+        <message>
+            <source>Startup &amp; updates</source>
+            <translation>启动与更新</translation>
         </message>
         <message>
             <source>Storage and privacy</source>
             <translation>存储与隐私</translation>
-        </message>
-        <message>
-            <source>Storage and privacy settings page</source>
-            <translation>存储与隐私设置页面</translation>
         </message>
         <message>
             <source>Storage error</source>
@@ -3097,8 +3523,8 @@
             <translation>系统托盘</translation>
         </message>
         <message>
-            <source>System tray availability and icon settings</source>
-            <translation>系统托盘可用性和图标设置</translation>
+            <source>System tray icon, actions and menu</source>
+            <translation>系统托盘图标、操作与菜单</translation>
         </message>
         <message>
             <source>Table recognition</source>
@@ -3117,12 +3543,12 @@
             <translation>文本</translation>
         </message>
         <message>
-            <source>Text Recognition</source>
-            <translation>文字识别</translation>
+            <source>Text Detection Processing</source>
+            <translation>文字检测处理</translation>
         </message>
         <message>
-            <source>Text Translation</source>
-            <translation>文本翻译</translation>
+            <source>Text background</source>
+            <translation>文本背景</translation>
         </message>
         <message>
             <source>Text detection scaling</source>
@@ -3131,6 +3557,10 @@
         <message>
             <source>Text recognition</source>
             <translation>文本识别</translation>
+        </message>
+        <message>
+            <source>Text recognition &amp; translation</source>
+            <translation>文字识别与翻译</translation>
         </message>
         <message>
             <source>Text recognition appearance</source>
@@ -3153,8 +3583,24 @@
             <translation>主题</translation>
         </message>
         <message>
+            <source>Theme &amp; skins</source>
+            <translation>主题与皮肤</translation>
+        </message>
+        <message>
             <source>Theme Primary Color</source>
             <translation>主题主色</translation>
+        </message>
+        <message>
+            <source>Theme configuration</source>
+            <translation>主题配置</translation>
+        </message>
+        <message>
+            <source>Theme, accent color and application font</source>
+            <translation>主题、主题色和应用字体</translation>
+        </message>
+        <message>
+            <source>Theme, font, skins and toolbar size</source>
+            <translation>主题、字体、皮肤和工具栏尺寸</translation>
         </message>
         <message>
             <source>Thumbnail Mode</source>
@@ -3173,6 +3619,14 @@
             <translation>切换全局/相对坐标</translation>
         </message>
         <message>
+            <source>Toggle Guides</source>
+            <translation>切换辅助线</translation>
+        </message>
+        <message>
+            <source>Toggle cursor visibility</source>
+            <translation>切换光标显示</translation>
+        </message>
+        <message>
             <source>Toggle hotkeys</source>
             <translation>切换快捷键</translation>
         </message>
@@ -3181,16 +3635,36 @@
             <translation>工具位置</translation>
         </message>
         <message>
-            <source>Toolbar</source>
-            <translation>工具栏</translation>
+            <source>Toolbar Opacity</source>
+            <translation>工具栏不透明度</translation>
+        </message>
+        <message>
+            <source>Toolbar Skin Path</source>
+            <translation>工具栏皮肤路径</translation>
+        </message>
+        <message>
+            <source>Toolbar Skin Position</source>
+            <translation>工具栏皮肤位置</translation>
         </message>
         <message>
             <source>Toolbar size</source>
-            <translation>工具栏大小</translation>
+            <translation>工具栏尺寸</translation>
         </message>
         <message>
             <source>Tools that forbid quick selection of same-type elements</source>
             <translation>禁止快速选择同类型元素的工具</translation>
+        </message>
+        <message>
+            <source>Top center</source>
+            <translation>顶部居中</translation>
+        </message>
+        <message>
+            <source>Top left</source>
+            <translation>左上角</translation>
+        </message>
+        <message>
+            <source>Top right</source>
+            <translation>右上角</translation>
         </message>
         <message>
             <source>Translate Selected Text</source>
@@ -3221,8 +3695,40 @@
             <translation>翻译页面</translation>
         </message>
         <message>
+            <source>Translation Service</source>
+            <translation>翻译服务</translation>
+        </message>
+        <message>
+            <source>Translation Settings</source>
+            <translation>翻译设置</translation>
+        </message>
+        <message>
+            <source>Translation extensions</source>
+            <translation>翻译扩展</translation>
+        </message>
+        <message>
+            <source>Translation services</source>
+            <translation>翻译服务</translation>
+        </message>
+        <message>
+            <source>Translation services &amp; AI models</source>
+            <translation>翻译服务与 AI 模型</translation>
+        </message>
+        <message>
             <source>Tray</source>
             <translation>托盘</translation>
+        </message>
+        <message>
+            <source>Tray &amp; floating toolbar</source>
+            <translation>托盘与悬浮工具栏</translation>
+        </message>
+        <message>
+            <source>Tray Menu Skin Path</source>
+            <translation>托盘菜单皮肤路径</translation>
+        </message>
+        <message>
+            <source>Tray Menu Skin Position</source>
+            <translation>托盘菜单皮肤位置</translation>
         </message>
         <message>
             <source>Tray appearance</source>
@@ -3293,6 +3799,18 @@
             <translation>非常慢</translation>
         </message>
         <message>
+            <source>Video &amp; audio</source>
+            <translation>视频与音频</translation>
+        </message>
+        <message>
+            <source>Video encoder and compression speed</source>
+            <translation>视频编码器与压缩速度</translation>
+        </message>
+        <message>
+            <source>Video export</source>
+            <translation>视频导出</translation>
+        </message>
+        <message>
             <source>Video filename format</source>
             <translation>视频文件名格式</translation>
         </message>
@@ -3307,6 +3825,10 @@
         <message>
             <source>Video save directory</source>
             <translation>视频保存目录</translation>
+        </message>
+        <message>
+            <source>Video, audio and animated-image recording preferences</source>
+            <translation>视频、音频与动图录制偏好</translation>
         </message>
         <message>
             <source>View connection status and configure your MCP client.</source>
@@ -3349,6 +3871,10 @@
             <translation>窗口分组</translation>
         </message>
         <message>
+            <source>Window interface</source>
+            <translation>窗口界面</translation>
+        </message>
+        <message>
             <source>Write the image to a file and copy that file to the clipboard</source>
             <translation>将图像写入文件并将该文件复制到剪贴板</translation>
         </message>
@@ -3386,6 +3912,10 @@
         <message>
             <source>Permissions needed</source>
             <translation>需要授权</translation>
+        </message>
+        <message>
+            <source>Related settings</source>
+            <translation>相关设置</translation>
         </message>
         <message>
             <source>Review permissions</source>
@@ -3690,7 +4220,7 @@ Unavailable: %2</source>
         </message>
         <message>
             <source>Migrating pinned windows — %1/%2</source>
-            <translation>正在迁移贴图 — %1/%2</translation>
+            <translation>正在迁移固定到屏幕窗口 — %1/%2</translation>
         </message>
         <message>
             <source>Migrating screenshot history — %1/%2</source>
@@ -3778,7 +4308,7 @@ Unavailable: %2</source>
         </message>
         <message>
             <source>Settings and open pinned windows will be copied to %1. Screenshot and closed pinned history will stay in the old directory. Continue?</source>
-            <translation>设置和已打开的贴图将复制至 %1。截图历史和已关闭的贴图历史将保留在旧目录中。是否继续？</translation>
+            <translation>设置和已打开的固定到屏幕窗口将复制至 %1。截图历史和已关闭的固定到屏幕窗口历史将保留在旧目录中。是否继续？</translation>
         </message>
         <message>
             <source>Storage directory</source>
@@ -3999,7 +4529,7 @@ Unavailable: %2</source>
         </message>
         <message>
             <source>Some pinned windows could not be prepared in the new directory.</source>
-            <translation>无法在新目录中准备部分贴图。</translation>
+            <translation>无法在新目录中准备部分固定到屏幕窗口。</translation>
         </message>
         <message>
             <source>Storage is busy or unavailable. Try again when current operations finish.</source>

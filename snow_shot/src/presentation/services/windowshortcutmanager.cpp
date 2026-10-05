@@ -56,13 +56,16 @@ QList<QKeyCombination> normalizedCombinations(const QList<QKeyCombination>& comb
     return result;
 }
 
-shortcuts::ShortcutBindingList normalizedBindings(const shortcuts::ShortcutBindingList& bindings) {
+shortcuts::ShortcutBindingList normalizedBindings(const shortcuts::ShortcutBindingList& bindings,
+                                                  bool allowModifierOnlyControl = false) {
     shortcuts::ShortcutBindingList result;
     for (const shortcuts::ShortcutBinding& candidate : bindings) {
         const bool modifierOnlyShift =
             candidate.portableText.compare(QStringLiteral("Shift"), Qt::CaseInsensitive) == 0;
-        const shortcuts::ShortcutBinding binding =
-            shortcuts::canonicalBinding(candidate, modifierOnlyShift);
+        const bool modifierOnlyAlt =
+            candidate.portableText.compare(QStringLiteral("Alt"), Qt::CaseInsensitive) == 0;
+        const shortcuts::ShortcutBinding binding = shortcuts::canonicalBinding(
+            candidate, modifierOnlyShift, modifierOnlyAlt, allowModifierOnlyControl);
         if (binding.portableText.isEmpty()) {
             continue;
         }
@@ -312,6 +315,19 @@ struct WindowShortcutManager::Impl {
         }
     }
 
+    void cancelPendingTaps(quint64 continuingKey = 0) {
+        for (auto it = m_releaseActivations.begin(); it != m_releaseActivations.end(); ++it) {
+            if (continuingKey != 0 && it.key() == continuingKey) {
+                continue;
+            }
+            const RegisteredBinding* registered = findBinding(it->handle);
+            if (registered != nullptr &&
+                registered->binding.activationTrigger == Binding::ActivationTrigger::Tap) {
+                it->handle = 0;
+            }
+        }
+    }
+
     [[nodiscard]] RegisteredBinding* findBinding(BindingHandle handle) {
         const auto binding =
             std::find_if(m_bindings.begin(), m_bindings.end(),
@@ -464,15 +480,17 @@ void WindowShortcutManager::resumeInput(InputSuspensionHandle handle) {
 WindowShortcutManager::BindingHandle WindowShortcutManager::addBinding(QObject* owner,
                                                                        Binding binding) {
     if (owner == nullptr || !binding.activate ||
-        (binding.activationTrigger == Binding::ActivationTrigger::Release &&
+        (binding.activationTrigger != Binding::ActivationTrigger::Press &&
          (binding.release || binding.cancel || binding.autoRepeat)) ||
         static_cast<bool>(binding.release) != static_cast<bool>(binding.cancel)) {
         return 0;
     }
     if (binding.shortcutBindings.isEmpty()) {
-        binding.shortcutBindings = shortcutBindingsFromKeyCombinations(binding.keyCombinations);
+        binding.shortcutBindings = shortcutBindingsFromKeyCombinations(
+            binding.keyCombinations, binding.allowModifierOnlyControl);
     } else {
-        binding.shortcutBindings = normalizedBindings(binding.shortcutBindings);
+        binding.shortcutBindings =
+            normalizedBindings(binding.shortcutBindings, binding.allowModifierOnlyControl);
     }
     binding.keyCombinations.clear();
 
@@ -492,14 +510,18 @@ bool WindowShortcutManager::setShortcuts(BindingHandle handle,
     if (binding == m_impl->m_bindings.end()) {
         return false;
     }
-    binding->binding.shortcutBindings = normalizedBindings(shortcuts);
+    binding->binding.shortcutBindings =
+        normalizedBindings(shortcuts, binding->binding.allowModifierOnlyControl);
     m_impl->cancelReleaseActivations(handle);
     return true;
 }
 
 bool WindowShortcutManager::setKeyCombinations(BindingHandle handle,
                                                const QList<QKeyCombination>& keyCombinations) {
-    return setShortcuts(handle, shortcutBindingsFromKeyCombinations(keyCombinations));
+    const auto* binding = m_impl->findBinding(handle);
+    return binding != nullptr &&
+           setShortcuts(handle, shortcutBindingsFromKeyCombinations(
+                                    keyCombinations, binding->binding.allowModifierOnlyControl));
 }
 
 bool WindowShortcutManager::removeBinding(BindingHandle handle) {
@@ -520,12 +542,22 @@ bool WindowShortcutManager::removeBinding(BindingHandle handle) {
 }
 
 shortcuts::ShortcutBindingList WindowShortcutManager::shortcutBindingsFromKeyCombinations(
-    const QList<QKeyCombination>& keyCombinations) {
+    const QList<QKeyCombination>& keyCombinations, bool allowModifierOnlyControl) {
     shortcuts::ShortcutBindingList bindings;
     for (const QKeyCombination combination : normalizedCombinations(keyCombinations)) {
         if (combination.key() == Qt::Key_Shift &&
             combination.keyboardModifiers() == Qt::ShiftModifier) {
             bindings.push_back(shortcuts::ShortcutBinding{QStringLiteral("Shift")});
+            continue;
+        }
+        if (combination.key() == Qt::Key_Alt &&
+            combination.keyboardModifiers() == Qt::AltModifier) {
+            bindings.push_back(shortcuts::ShortcutBinding{QStringLiteral("Alt")});
+            continue;
+        }
+        if (allowModifierOnlyControl && combination.key() == Qt::Key_Control &&
+            combination.keyboardModifiers() == Qt::ControlModifier) {
+            bindings.push_back(shortcuts::ShortcutBinding{QStringLiteral("Ctrl")});
             continue;
         }
         const QString portable = QKeySequence(combination).toString(QKeySequence::PortableText);
@@ -534,7 +566,7 @@ shortcuts::ShortcutBindingList WindowShortcutManager::shortcutBindingsFromKeyCom
             bindings.push_back(binding);
         }
     }
-    return normalizedBindings(bindings);
+    return normalizedBindings(bindings, allowModifierOnlyControl);
 }
 
 QList<QKeyCombination> WindowShortcutManager::keyCombinationsFromBindings(
@@ -544,6 +576,10 @@ QList<QKeyCombination> WindowShortcutManager::keyCombinationsFromBindings(
     for (const shortcuts::ShortcutBinding& binding : shortcuts) {
         if (binding.portableText.compare(QStringLiteral("Shift"), Qt::CaseInsensitive) == 0) {
             combinations.push_back(QKeyCombination(Qt::ShiftModifier, Qt::Key_Shift));
+            continue;
+        }
+        if (binding.portableText.compare(QStringLiteral("Alt"), Qt::CaseInsensitive) == 0) {
+            combinations.push_back(QKeyCombination(Qt::AltModifier, Qt::Key_Alt));
             continue;
         }
         const QKeySequence sequence =
@@ -578,6 +614,9 @@ bool WindowShortcutManager::eventFilter(QObject* watched, QEvent* event) {
         return QObject::eventFilter(watched, event);
     }
     if (event->type() == QEvent::Hide || event->type() == QEvent::WindowDeactivate) {
+        if (event->type() == QEvent::WindowDeactivate) {
+            m_impl->cancelPendingTaps();
+        }
         if (event->type() == QEvent::Hide) {
             if (auto* widget = qobject_cast<QWidget*>(watched); widget && widget->isWindow()) {
                 m_impl->cancelReleaseActivations(0, widget);
@@ -590,6 +629,10 @@ bool WindowShortcutManager::eventFilter(QObject* watched, QEvent* event) {
         m_impl->invalidateHeldKeys();
         m_impl->cancelHeldBindings();
         return false;
+    }
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick ||
+        event->type() == QEvent::Wheel) {
+        m_impl->cancelPendingTaps();
     }
     if (event->type() != QEvent::ShortcutOverride && event->type() != QEvent::KeyPress &&
         event->type() != QEvent::KeyRelease) {
@@ -604,6 +647,9 @@ bool WindowShortcutManager::eventFilter(QObject* watched, QEvent* event) {
     auto* keyEvent = static_cast<QKeyEvent*>(event);
     const quint64 keyToken = shortcuts::eventKeyToken(*keyEvent);
     const bool keyRelease = event->type() == QEvent::KeyRelease;
+    if (event->type() == QEvent::KeyPress) {
+        m_impl->cancelPendingTaps(keyToken);
+    }
     auto& releaseOwners = applicationKeyState().releaseOwners;
     if (const auto owner = releaseOwners.value(keyToken); owner && owner != this) {
         const auto pending = owner->m_impl->m_releaseActivations.constFind(keyToken);
@@ -776,7 +822,7 @@ bool WindowShortcutManager::eventFilter(QObject* watched, QEvent* event) {
         if (activate && keyEvent->isAutoRepeat()) {
             m_impl->noteKeyPress(*keyEvent);
         }
-        if (registered->binding.activationTrigger == Binding::ActivationTrigger::Release) {
+        if (registered->binding.activationTrigger != Binding::ActivationTrigger::Press) {
             m_impl->m_releaseActivations.insert(keyToken, {candidate.handle, scopeWindow});
             releaseOwners.insert(keyToken, this);
             event->accept();

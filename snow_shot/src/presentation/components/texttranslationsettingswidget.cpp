@@ -1,7 +1,9 @@
 #include "snow_shot/presentation/components/texttranslationsettingswidget.h"
 #include "snow_shot/presentation/components/formfields.h"
 #include "snow_shot/presentation/settings/settingsruntimesession.h"
+#include "snow_shot/presentation/styles/mainwindowcomponenttoken.h"
 #include "snow_shot/presentation/styles/thememanager.h"
+#include "theme/theme_manager.h"
 #include "widgets/alert.h"
 #include "widgets/button.h"
 #include "widgets/form.h"
@@ -31,7 +33,15 @@ namespace {
 class ConfigurationRow final : public QWidget {
   public:
     ConfigurationRow(const presentation::styles::ThemeColorScheme& scheme, QWidget* parent)
-        : QWidget(parent), m_scheme(scheme) {}
+        : QWidget(parent), m_scheme(scheme) {
+        connect(&adqt::theme::ThemeManager::instance(), &adqt::theme::ThemeManager::themeChanged,
+                this, [this] { update(); });
+    }
+
+    void applyTheme(const presentation::styles::ThemeColorScheme& scheme) {
+        m_scheme = scheme;
+        update();
+    }
 
   protected:
     void paintEvent(QPaintEvent*) override {
@@ -39,7 +49,8 @@ class ConfigurationRow final : public QWidget {
         painter.setRenderHint(QPainter::Antialiasing);
         const qreal borderWidth = m_scheme.metricAlias.lineWidth;
         const qreal inset = borderWidth / 2.0;
-        painter.setBrush(m_scheme.map.colorBgContainer);
+        painter.setBrush(
+            presentation::styles::mainWindowBackgroundColor(this, m_scheme.map.colorBgContainer));
         painter.setPen(borderWidth > 0 ? QPen(m_scheme.map.colorBorderSecondary, borderWidth)
                                        : Qt::NoPen);
         painter.drawRoundedRect(QRectF(rect()).adjusted(inset, inset, -inset, -inset),
@@ -122,7 +133,11 @@ void TextTranslationSettingsWidget::applyTheme(
     QPalette colors = palette();
     colors.setColor(QPalette::WindowText, scheme.map.colorText);
     setPalette(colors);
-    rebuild();
+    for (int index = 0; index < m_rows->count(); ++index) {
+        if (auto* row = dynamic_cast<ConfigurationRow*>(m_rows->itemAt(index)->widget())) {
+            row->applyTheme(scheme);
+        }
+    }
     update();
 }
 

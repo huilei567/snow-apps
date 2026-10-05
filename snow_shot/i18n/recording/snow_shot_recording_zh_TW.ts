@@ -51,6 +51,13 @@
         </message>
     </context>
     <context>
+        <name>RecordingRegionDragHandle</name>
+        <message>
+            <source>Move recording area</source>
+            <translation>移動錄影區域</translation>
+        </message>
+    </context>
+    <context>
         <name>RecordingRenderDialog</name>
         <message>
             <source>Cancel</source>
@@ -113,6 +120,40 @@
         <message>
             <source>Unable to start rendering</source>
             <translation>無法開始轉繪</translation>
+        </message>
+    </context>
+    <context>
+        <name>RecordingTrimSession</name>
+        <message>
+            <source>Choose a different file to preserve the original recording.</source>
+            <translation>請選擇其他檔案，以保留原始錄製。</translation>
+        </message>
+        <message>
+            <source>Save to File</source>
+            <translation>儲存至檔案</translation>
+        </message>
+        <message>
+            <source>Unable to export recording: %1</source>
+            <translation>無法匯出錄製：%1</translation>
+        </message>
+        <message>
+            <source>Unable to preview recording: %1</source>
+            <translation>無法預覽錄製：%1</translation>
+        </message>
+    </context>
+    <context>
+        <name>RecordingTrimToolbar</name>
+        <message>
+            <source>Replay</source>
+            <translation>重播</translation>
+        </message>
+        <message>
+            <source>Trim end</source>
+            <translation>裁剪終點</translation>
+        </message>
+        <message>
+            <source>Trim start</source>
+            <translation>裁剪起點</translation>
         </message>
     </context>
     <context>

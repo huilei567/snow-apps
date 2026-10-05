@@ -1,3 +1,4 @@
+use snow_memory::RasterBuffer;
 use std::collections::VecDeque;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
@@ -405,7 +406,7 @@ pub(crate) unsafe fn swscale_thread_count(
 
 struct PendingFrame {
     pts: i64,
-    rgba: Vec<u8>,
+    rgba: RasterBuffer,
     gpu: Option<ffmpeg::frame::Video>,
     reuse_cpu_pixels: bool,
 }
@@ -424,10 +425,12 @@ struct StreamingAudioState {
     pending_samples: VecDeque<i16>,
     next_input_frame: u64,
     next_encoder_pts: i64,
-    final_duration_ms: Option<u64>,
+    final_duration_us: Option<u64>,
 }
 
 pub struct StreamingEncoder {
+    format: ExportFormat,
+    loop_images: bool,
     #[cfg(any(test, feature = "bench-experiments"))]
     injected_failure: Option<GpuFailureStage>,
     recovery: Option<recovery::RecoveryState>,
@@ -453,7 +456,7 @@ pub struct StreamingEncoder {
     pending: Option<PendingFrame>,
     reuse_identical_rgba: bool,
     admitted_frames: u64,
-    spare_rgba: Vec<u8>,
+    spare_rgba: RasterBuffer,
     pending_timed_durations: VideoPacketDurations,
     audio: Vec<StreamingAudioState>,
     staging_path: Option<PathBuf>,
@@ -461,7 +464,7 @@ pub struct StreamingEncoder {
     final_path: PathBuf,
     report: StreamingEncoderReport,
     finished: bool,
-    final_duration_ms: Option<u64>,
+    final_duration_us: Option<u64>,
 }
 
 impl StreamingEncoder {
@@ -956,6 +959,8 @@ impl StreamingEncoder {
         let used_hardware_video_encoder = opened_video_encoder_uses_hardware(&encoder);
         let effective_encode_threads = unsafe { (*encoder.as_ptr()).thread_count.max(0) as usize };
         Ok(Self {
+            format: config.format,
+            loop_images: config.loop_animated_images,
             #[cfg(any(test, feature = "bench-experiments"))]
             injected_failure: None,
             recovery: None,
@@ -985,7 +990,7 @@ impl StreamingEncoder {
             pending: None,
             reuse_identical_rgba: false,
             admitted_frames: 0,
-            spare_rgba: Vec::new(),
+            spare_rgba: RasterBuffer::new(),
             pending_timed_durations: VideoPacketDurations::default(),
             audio,
             staging_path: None,
@@ -1018,7 +1023,7 @@ impl StreamingEncoder {
                 ..report
             },
             finished: false,
-            final_duration_ms: None,
+            final_duration_us: None,
         })
     }
 
@@ -1121,7 +1126,7 @@ impl StreamingEncoder {
                 .timings
                 .record("encode.pending_copy", copy_started);
         }
-        self.spare_rgba = self.push_owned_rgba_frame_at_pts(pts, owned)?;
+        self.spare_rgba = self.push_raster_rgba_frame_at_pts(pts, owned)?;
         Ok(())
     }
 
@@ -1130,6 +1135,16 @@ impl StreamingEncoder {
     /// return an empty vector; subsequent calls return the previous image's storage.
     /// Storage may grow on first use to provide FFmpeg's SIMD tail padding.
     pub fn push_owned_rgba_frame_at_pts(&mut self, pts: u64, rgba: Vec<u8>) -> Result<Vec<u8>> {
+        self.push_raster_rgba_frame_at_pts(pts, rgba.into())
+            .map(RasterBuffer::into_vec)
+    }
+
+    /// Transfer mapped raster ownership and return the previous reusable buffer.
+    pub fn push_raster_rgba_frame_at_pts(
+        &mut self,
+        pts: u64,
+        rgba: RasterBuffer,
+    ) -> Result<RasterBuffer> {
         if self.cpu_hdr_input {
             return Err(RecordingExportError::InvalidConfig(
                 "HDR encoder requires P010 BT.2020/PQ input".into(),
@@ -1403,7 +1418,7 @@ impl StreamingEncoder {
         self.admitted_frames += 1;
         self.pending = Some(PendingFrame {
             pts,
-            rgba: Vec::new(),
+            rgba: RasterBuffer::new(),
             gpu: Some(native),
             reuse_cpu_pixels: false,
         });
@@ -1483,7 +1498,7 @@ impl StreamingEncoder {
         self.admitted_frames += 1;
         self.pending = Some(PendingFrame {
             pts,
-            rgba: Vec::new(),
+            rgba: RasterBuffer::new(),
             gpu: Some(native),
             reuse_cpu_pixels: false,
         });
@@ -1596,10 +1611,10 @@ impl StreamingEncoder {
             self.report.timings.packet(packet.pts());
             packet.set_stream(self.stream_index);
             packet.rescale_ts(self.encoder.time_base(), self.stream_time_base);
-            if let Some(duration_ms) = self.final_duration_ms {
+            if let Some(duration_us) = self.final_duration_us {
                 use ffmpeg::Rescale;
-                let end = (duration_ms.min(i64::MAX as u64) as i64)
-                    .rescale(ffmpeg::Rational(1, 1000), self.stream_time_base);
+                let end = (duration_us.min(i64::MAX as u64) as i64)
+                    .rescale(ffmpeg::Rational(1, 1_000_000), self.stream_time_base);
                 if let Some(pts) = packet.pts() {
                     packet.set_duration(packet.duration().min(end.saturating_sub(pts).max(1)));
                 }
@@ -1668,27 +1683,45 @@ impl StreamingEncoder {
     /// Keep rational frame PTS while ending the final packet at the accepted Stop time.
     /// The muxer's time base determines the representable endpoint precision.
     pub fn finish_at_duration_ms(self, duration_ms: u64) -> Result<StreamingEncoderReport> {
-        self.finish_at_duration_ms_inner(duration_ms, None)
+        self.finish_at_duration_us_inner(
+            duration_ms.checked_mul(1000).ok_or_else(|| {
+                RecordingExportError::InvalidConfig("video duration overflow".into())
+            })?,
+            None,
+        )
     }
     pub fn finish_at_duration_ms_cancelable(
         self,
         duration_ms: u64,
         cancellation: &snow_core::cancellation::CancellationToken,
     ) -> Result<StreamingEncoderReport> {
-        self.finish_at_duration_ms_inner(duration_ms, Some(cancellation))
+        self.finish_at_duration_us_inner(
+            duration_ms.checked_mul(1000).ok_or_else(|| {
+                RecordingExportError::InvalidConfig("video duration overflow".into())
+            })?,
+            Some(cancellation),
+        )
     }
-    fn finish_at_duration_ms_inner(
+    /// Exact clip endpoint, including sub-millisecond presentation-frame cuts.
+    pub fn finish_at_duration_us_cancelable(
+        self,
+        duration_us: u64,
+        cancellation: &snow_core::cancellation::CancellationToken,
+    ) -> Result<StreamingEncoderReport> {
+        self.finish_at_duration_us_inner(duration_us, Some(cancellation))
+    }
+    fn finish_at_duration_us_inner(
         mut self,
-        duration_ms: u64,
+        duration_us: u64,
         cancellation: Option<&snow_core::cancellation::CancellationToken>,
     ) -> Result<StreamingEncoderReport> {
-        if duration_ms == 0 {
+        if duration_us == 0 {
             return Err(RecordingExportError::InvalidConfig(
                 "video duration must be non-zero".into(),
             ));
         }
-        self.final_duration_ms = Some(duration_ms);
-        let end = (u128::from(duration_ms) * u128::from(self.fps)).div_ceil(1000);
+        self.final_duration_us = Some(duration_us);
+        let end = (u128::from(duration_us) * u128::from(self.fps)).div_ceil(1_000_000);
         self.finish_at_pts_inner(
             u64::try_from(end).map_err(|_| {
                 RecordingExportError::InvalidConfig("video duration overflow".into())
@@ -1760,12 +1793,50 @@ impl StreamingEncoder {
             .as_ref()
             .and_then(|frame| end_pts.map(|end| end.saturating_sub(frame.pts).max(1)))
             .unwrap_or(1);
+        let endpoint =
+            end_pts.unwrap_or_else(|| self.pending.as_ref().map_or(1, |frame| frame.pts + 1));
+        if self.format == ExportFormat::Apng {
+            let last_us = self.final_duration_us.map_or_else(
+                || (duration as u64).saturating_mul(1_000_000) / u64::from(self.fps),
+                |end| {
+                    end.saturating_sub(self.pending.as_ref().map_or(0, |frame| {
+                        frame.pts.max(0) as u64 * 1_000_000 / u64::from(self.fps)
+                    }))
+                },
+            );
+            let mut numerator = 0;
+            let mut denominator = 0;
+            unsafe {
+                ffmpeg::ffi::av_reduce(
+                    &mut numerator,
+                    &mut denominator,
+                    last_us.max(1).min(i64::MAX as u64) as i64,
+                    1_000_000,
+                    65535,
+                );
+                let output = self.output.as_mut().expect("streaming output");
+                let status = ffmpeg::ffi::av_opt_set_q(
+                    (*output.as_mut_ptr()).priv_data,
+                    c"final_delay".as_ptr(),
+                    ffmpeg::ffi::AVRational {
+                        num: numerator,
+                        den: denominator,
+                    },
+                    0,
+                );
+                if status < 0 {
+                    return Err(RecordingExportError::Encode(
+                        ffmpeg::Error::from(status).to_string(),
+                    ));
+                }
+            }
+        }
         self.encode_pending(duration)?;
         for audio in &mut self.audio {
             let output = self.output.as_mut().ok_or_else(|| {
                 RecordingExportError::Encode("streaming output is already closed".to_string())
             })?;
-            audio.finish(output, &mut self.report, self.final_duration_ms)?;
+            audio.finish(output, &mut self.report, self.final_duration_us)?;
         }
         retry_send(
             self,
@@ -1784,6 +1855,16 @@ impl StreamingEncoder {
             })?;
         }
         self.output.take();
+        crate::animation::preserve_timing(
+            self.staging_path
+                .as_deref()
+                .ok_or_else(|| RecordingExportError::Encode("missing staging path".into()))?,
+            self.format,
+            (self.width, self.height),
+            self.final_duration_us
+                .unwrap_or_else(|| endpoint.max(1) as u64 * 1_000_000 / u64::from(self.fps)),
+            self.loop_images,
+        )?;
         let staging_path = self.staging_path.take().ok_or_else(|| {
             RecordingExportError::Encode("streaming staging path is unavailable".to_string())
         })?;
@@ -1932,11 +2013,12 @@ impl StreamingEncoder {
     }
 }
 
-fn pad_owned_rgba(rgba: &mut Vec<u8>) {
+fn pad_owned_rgba(rgba: &mut RasterBuffer) {
     // swscale permits SIMD reads past the last plane. Reserve initialized tail
     // padding without doubling a full-size image's capacity on its first use.
     let padding = ffmpeg::ffi::AV_INPUT_BUFFER_PADDING_SIZE as usize;
-    rgba.reserve_exact(padding);
+    rgba.try_reserve(padding)
+        .expect("RGBA padding allocation failed");
     rgba.resize(rgba.len() + padding, 0);
 }
 
@@ -2154,7 +2236,7 @@ fn create_audio_state(
         pending_samples: VecDeque::with_capacity(frame_samples * usize::from(config.channels) * 2),
         next_input_frame: 0,
         next_encoder_pts: 0,
-        final_duration_ms: None,
+        final_duration_us: None,
     })
 }
 
@@ -2276,7 +2358,7 @@ impl StreamingAudioState {
                     output,
                     self.stream_index,
                     self.stream_time_base,
-                    self.final_duration_ms,
+                    self.final_duration_us,
                 )?;
             }
         } else {
@@ -2287,7 +2369,7 @@ impl StreamingAudioState {
                 output,
                 self.stream_index,
                 self.stream_time_base,
-                self.final_duration_ms,
+                self.final_duration_us,
             )?;
         }
         Ok(())
@@ -2297,9 +2379,9 @@ impl StreamingAudioState {
         &mut self,
         output: &mut ffmpeg::format::context::Output,
         report: &mut StreamingEncoderReport,
-        duration_ms: Option<u64>,
+        duration_us: Option<u64>,
     ) -> Result<()> {
-        self.final_duration_ms = duration_ms;
+        self.final_duration_us = duration_us;
         if !self.pending_samples.is_empty() {
             let pending_frames = self.pending_samples.len() / self.input_channels;
             let encoded_frames = if self.variable_frame_size {
@@ -2337,7 +2419,7 @@ impl StreamingAudioState {
                         output,
                         self.stream_index,
                         self.stream_time_base,
-                        self.final_duration_ms,
+                        self.final_duration_us,
                     )?;
                     report.encoded_audio_frames =
                         report.encoded_audio_frames.saturating_add(samples);
@@ -2358,7 +2440,7 @@ impl StreamingAudioState {
             output,
             self.stream_index,
             self.stream_time_base,
-            self.final_duration_ms,
+            self.final_duration_us,
         )
     }
 }
@@ -2370,7 +2452,7 @@ fn send_audio_frame(
     output: &mut ffmpeg::format::context::Output,
     stream_index: usize,
     stream_time_base: ffmpeg::Rational,
-    duration_ms: Option<u64>,
+    duration_us: Option<u64>,
 ) -> Result<()> {
     let samples = frame.samples() as i64;
     frame.set_pts(Some(*next_pts));
@@ -2384,7 +2466,7 @@ fn send_audio_frame(
         output,
         stream_index,
         stream_time_base,
-        duration_ms,
+        duration_us,
     )
 }
 
@@ -2394,16 +2476,16 @@ fn drain_streaming_audio_packets(
     output: &mut ffmpeg::format::context::Output,
     stream_index: usize,
     stream_time_base: ffmpeg::Rational,
-    duration_ms: Option<u64>,
+    duration_us: Option<u64>,
 ) -> Result<()> {
     let encoder_time_base = encoder.time_base();
     drain_audio_packets_with_callback(encoder, draining, |mut packet| {
         packet.set_stream(stream_index);
         packet.rescale_ts(encoder_time_base, stream_time_base);
-        if let Some(duration_ms) = duration_ms {
+        if let Some(duration_us) = duration_us {
             use ffmpeg::Rescale;
             let end =
-                (duration_ms.min(i64::MAX as u64) as i64).rescale((1, 1000), stream_time_base);
+                (duration_us.min(i64::MAX as u64) as i64).rescale((1, 1_000_000), stream_time_base);
             if let Some(pts) = packet.pts() {
                 if pts >= end {
                     return Ok(());
@@ -2792,10 +2874,11 @@ mod tests {
             fs::File::create(std::env::var("SNOW_CONVERSION_BENCH_OUTPUT").unwrap()).unwrap();
         writeln!(csv, "pair,variant,iterations,nanoseconds_per_frame").unwrap();
         let (width, height) = (1920, 1080);
-        let mut pixels: Vec<u8> = (0..width * height * 4)
+        let pixels: Vec<u8> = (0..width * height * 4)
             .map(|index| (index % 251) as u8)
             .collect();
         let visible = pixels.len();
+        let mut pixels: RasterBuffer = pixels.into();
         pad_owned_rgba(&mut pixels);
         let mut rgba_frame = ffmpeg::frame::Video::new(ffmpeg::format::Pixel::RGBA, width, height);
         let mut output = ffmpeg::frame::Video::new(ffmpeg::format::Pixel::YUV420P, width, height);
@@ -2856,7 +2939,7 @@ mod tests {
                 .collect();
             let mut source = ffmpeg::frame::Video::new(ffmpeg::format::Pixel::RGBA, width, height);
             copy_rgba_into_frame(&mut source, width, &pixels);
-            let mut padded = pixels.clone();
+            let mut padded: RasterBuffer = pixels.clone().into();
             pad_owned_rgba(&mut padded);
             for format in [
                 ffmpeg::format::Pixel::YUV420P,
@@ -3603,6 +3686,37 @@ mod tests {
             );
         }
         assert_eq!(packets[0], packets[1]);
+    }
+
+    #[test]
+    fn mapped_submission_recycles_page_storage_after_conversion() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("mapped.mp4");
+        let mut config = encoder_config(path.clone(), ExportFormat::Mp4);
+        config.width = 1024;
+        config.height = 256;
+        let mut encoder = StreamingEncoder::create(config).unwrap();
+        let mut first = RasterBuffer::zeroed(1024 * 256 * 4);
+        first.fill(0x5a);
+        let pointer = first.as_ptr();
+        assert!(
+            encoder
+                .push_raster_rgba_frame_at_pts(0, first)
+                .unwrap()
+                .is_empty()
+        );
+        let second = RasterBuffer::zeroed(1024 * 256 * 4);
+        let returned = encoder.push_raster_rgba_frame_at_pts(1, second).unwrap();
+        assert_eq!(
+            returned.as_ptr(),
+            pointer,
+            "SIMD padding must not copy the full raster"
+        );
+        assert!(returned.iter().all(|&byte| byte == 0x5a));
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+        assert!(returned.is_page_backed());
+        assert_eq!(encoder.finish_at_pts(2).unwrap().encoded_frames, 2);
+        assert_eq!(decoded_video_frame_count(&path).0, 2);
     }
 
     #[test]

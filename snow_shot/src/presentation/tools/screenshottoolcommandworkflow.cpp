@@ -70,6 +70,14 @@ void ScreenshotToolCommandWorkflow::setEraserTool() {
     setCanvasTool(ScreenshotActiveTool::Eraser, SnowCanvasTool::Eraser);
 }
 
+void ScreenshotToolCommandWorkflow::setRectangleEraserTool() {
+    setCanvasTool(ScreenshotActiveTool::RectangleEraser, SnowCanvasTool::RectangleEraser);
+}
+
+void ScreenshotToolCommandWorkflow::setBrushEraserTool() {
+    setCanvasTool(ScreenshotActiveTool::BrushEraser, SnowCanvasTool::BrushEraser);
+}
+
 void ScreenshotToolCommandWorkflow::setFilterTool() {
     setRectangleFilterTool();
 }
@@ -146,8 +154,8 @@ void ScreenshotToolCommandWorkflow::setTextStyleFromToolbar(const SnowCanvasText
 }
 
 void ScreenshotToolCommandWorkflow::setSerialNumberStyleFromToolbar(
-    const SnowCanvasSerialNumberStyle& style) {
-    m_context.actions.setSerialNumberStyle(style);
+    const SnowCanvasSerialNumberStyle& style, std::optional<quint32> properties) {
+    m_context.actions.setSerialNumberStyle(style, properties);
 }
 
 bool ScreenshotToolCommandWorkflow::stepStrokeWidth(int delta) {

@@ -59,6 +59,10 @@ ScreenshotToolPalette::Tool paletteTool(ScreenshotActiveTool tool) {
         return ScreenshotToolPalette::Tool::PenHighlight;
     case ScreenshotActiveTool::Eraser:
         return ScreenshotToolPalette::Tool::Eraser;
+    case ScreenshotActiveTool::RectangleEraser:
+        return ScreenshotToolPalette::Tool::RectangleEraser;
+    case ScreenshotActiveTool::BrushEraser:
+        return ScreenshotToolPalette::Tool::BrushEraser;
     case ScreenshotActiveTool::AutoFilter:
         return ScreenshotToolPalette::Tool::AutoFilter;
     case ScreenshotActiveTool::RectangleFilter:
@@ -251,6 +255,10 @@ ScreenshotOcrController::ScreenshotOcrController(ScreenshotOcrControllerContext 
                             overlay->setScreenshotOcrVisible(!show);
                         }
                     });
+            },
+            [this](const QString& language) {
+                if (auto* toolbar = m_context.overlayCoordinator.toolbar())
+                    toolbar->setTextTargetLanguage(language);
             },
         },
         this);
@@ -546,6 +554,10 @@ void ScreenshotOcrController::applyTextFormatting(const QString& value) {
     m_session->applyTextFormatting(value);
 }
 
+void ScreenshotOcrController::applyTextTargetLanguage(const QString& language) {
+    m_session->applyTextTargetLanguage(language);
+}
+
 void ScreenshotOcrController::applyTextPunctuation(const QString& value) {
     m_session->applyTextPunctuation(value);
 }
@@ -837,6 +849,8 @@ bool ScreenshotOcrController::ensureRecognitionWindow() {
         },
         nullptr, ScreenshotRecognitionWindow::PresentationMode::TopLevelWindow,
         m_context.shortcutManager);
+    window->setOriginalImagePreviewAboveSiblingProvider(
+        [this]() -> QWidget* { return m_context.overlayCoordinator.toolbar(); });
     if (!window->present(config)) {
         delete window;
         showStatus(tr("Unable to read the selected screenshot"), true);

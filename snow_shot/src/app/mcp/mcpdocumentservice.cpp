@@ -147,6 +147,8 @@ const QHash<QString, SnowCanvasTool> kCanvasTools{
     {QStringLiteral("rectangle_highlight"), SnowCanvasTool::RectangleHighlight},
     {QStringLiteral("pen_highlight"), SnowCanvasTool::PenHighlight},
     {QStringLiteral("eraser"), SnowCanvasTool::Eraser},
+    {QStringLiteral("rectangle_eraser"), SnowCanvasTool::RectangleEraser},
+    {QStringLiteral("brush_eraser"), SnowCanvasTool::BrushEraser},
     {QStringLiteral("rectangle_filter"), SnowCanvasTool::RectangleFilter},
     {QStringLiteral("pen_filter"), SnowCanvasTool::PenFilter},
     {QStringLiteral("text"), SnowCanvasTool::Text},
@@ -518,7 +520,7 @@ class DocumentWorker final : public QObject {
                     return {failure(request, QStringLiteral("invalid_source")), {}};
                 QImageReader reader(&buffer);
                 reader.setAutoTransform(true);
-                auto size = reader.size();
+                auto size = reader.effectiveSize();
                 const bool native = !size.isValid();
                 auto nativeFormat = snow::image::Format::unknown;
                 if (native) {
@@ -542,7 +544,7 @@ class DocumentWorker final : public QObject {
                     return {failure(request, QStringLiteral("canceled")), {}};
                 source.image = native
                                    ? snow_shot::image_codec::decode(encoded, nativeFormat, nullptr)
-                                   : reader.read();
+                                   : snow_shot::image_codec::readManagedImage(reader);
             }
             encoded.clear();
             source.metadata = {{QStringLiteral("kind"), QStringLiteral("file")},
@@ -693,7 +695,14 @@ class DocumentWorker final : public QObject {
                         return {failure(request, QStringLiteral("invalid_parameters")), {}};
                     points.append(point);
                 }
-                ok = editor.erasePath(points);
+                const SnowCanvasTool eraserTool =
+                    document.tool == QStringLiteral("rectangle_eraser")
+                        ? SnowCanvasTool::RectangleEraser
+                    : document.tool == QStringLiteral("brush_eraser") ? SnowCanvasTool::BrushEraser
+                                                                      : SnowCanvasTool::Eraser;
+                if (eraserTool == SnowCanvasTool::RectangleEraser && points.size() != 2)
+                    return {failure(request, QStringLiteral("invalid_parameters")), {}};
+                ok = editor.erasePath(points, eraserTool);
             } else if (action == QStringLiteral("delete_all"))
                 ok = editor.deleteAllElements();
             else if (action == QStringLiteral("duplicate"))

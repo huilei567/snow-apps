@@ -137,9 +137,10 @@ void ScreenshotOverlayWindow::setScreenshotImage(QImage image, const QRectF& can
     }
 }
 
-void ScreenshotOverlayWindow::setScreenshotImageSource(ScreenshotImageSource source) {
+void ScreenshotOverlayWindow::setScreenshotImageSource(ScreenshotImageSource source,
+                                                       const QRectF& damage) {
     if (m_screenshotRenderer)
-        m_screenshotRenderer->setImageSource(std::move(source));
+        m_screenshotRenderer->setImageSource(std::move(source), damage);
 }
 
 void ScreenshotOverlayWindow::setScreenshotMaskVisible(bool visible) {
@@ -166,6 +167,16 @@ void ScreenshotOverlayWindow::setScreenshotGuideLines(const QPointF& cursorPosit
     if (m_screenshotRenderer != nullptr) {
         m_screenshotRenderer->setGuideLines(cursorPosition, cursorColor, monitorCenterColor);
     }
+}
+
+void ScreenshotOverlayWindow::setSelectionCenterGuideLineColor(const QColor& color) {
+    if (m_screenshotRenderer != nullptr) {
+        m_screenshotRenderer->setSelectionCenterGuideLineColor(color);
+    }
+}
+
+QRectF ScreenshotOverlayWindow::screenshotSelection() const {
+    return m_screenshotRenderer != nullptr ? m_screenshotRenderer->selection() : QRectF();
 }
 
 void ScreenshotOverlayWindow::clearScreenshotGuideLines() {
@@ -659,6 +670,11 @@ void ScreenshotOverlayWindow::initializeScreenshotSurface() {
 }
 
 bool ScreenshotOverlayWindow::event(QEvent* event) {
+    if (event != nullptr &&
+        (event->type() == QEvent::Hide || event->type() == QEvent::WindowDeactivate)) {
+        m_eventSink.cancelEffectDrag();
+        m_eventSink.leaveEffectEditors();
+    }
     if (event != nullptr && event->type() == QEvent::Hide) {
         clearScrollingResultPreview();
     }
@@ -711,6 +727,16 @@ bool ScreenshotOverlayWindow::event(QEvent* event) {
 }
 
 bool ScreenshotOverlayWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_canvas && event != nullptr) {
+        if (event->type() == QEvent::Leave)
+            m_eventSink.leaveEffectEditors();
+        if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::Hide)
+            m_eventSink.cancelEffectDrag();
+    }
+    if (watched == m_canvas && event != nullptr && event->type() == QEvent::MouseMove &&
+        m_screenshotRenderer != nullptr) {
+        m_screenshotRenderer->setGuideCursorPosition(static_cast<QMouseEvent*>(event)->position());
+    }
     if (watched == m_canvas && event != nullptr && event->type() == QEvent::Paint) {
         SNOW_SHOT_CAPTURE_PERF_COUNTER("presentation.window.canvas.paint_dispatches", 1);
 #if defined(SNOW_SHOT_CAPTURE_PERF_INSTRUMENTATION)
@@ -931,6 +957,11 @@ bool ScreenshotOverlayWindow::handleCanvasMouseEvent(QMouseEvent* event) {
     }
 
     if (event->type() == QEvent::MouseButtonDblClick && event->button() == Qt::LeftButton &&
+        m_eventSink.handleEffectDoubleClick(this, event->position())) {
+        event->accept();
+        return true;
+    }
+    if (event->type() == QEvent::MouseButtonDblClick && event->button() == Qt::LeftButton &&
         m_eventSink.handleRegionDoubleClick(this, event->position())) {
         event->accept();
         return true;
@@ -950,11 +981,13 @@ bool ScreenshotOverlayWindow::handleCanvasMouseEvent(QMouseEvent* event) {
     // A drawing gesture owns the pointer until the canvas releases its grab. The
     // selection border may cross that gesture, but cannot take over its moves or release.
     if (m_canvas != nullptr && QWidget::mouseGrabber() == m_canvas &&
+        !m_eventSink.effectDragActive() &&
         (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)) {
         return false;
     }
 
     if (event->type() == QEvent::MouseMove && !event->buttons().testFlag(Qt::LeftButton)) {
+        m_eventSink.cancelEffectDrag();
         m_eventSink.handleOverlayMouseMove(this, event->position());
     }
 

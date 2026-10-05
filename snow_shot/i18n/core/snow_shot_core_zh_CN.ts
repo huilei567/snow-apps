@@ -42,7 +42,7 @@
         <message>
             <source>Capture, annotate, recognize text, and record your screen,
 so every moment on screen can be expressed clearly and shared easily.</source>
-            <translation>截图、标注、文字识别和录屏，
+            <translation>截图、标注、文字识别和屏幕录制，
 让屏幕上的每一刻都能清晰表达、轻松分享。</translation>
         </message>
         <message>
@@ -368,17 +368,61 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
     </context>
     <context>
+        <name>FloatingToolbar</name>
+        <message>
+            <source>Close</source>
+            <translation>关闭</translation>
+        </message>
+        <message>
+            <source>Customize toolbar</source>
+            <translation>自定义工具栏</translation>
+        </message>
+        <message>
+            <source>Delay %1 seconds to execute</source>
+            <translation>延迟 %1 秒执行</translation>
+        </message>
+        <message>
+            <source>Formula recognition</source>
+            <translation>公式识别</translation>
+        </message>
+        <message>
+            <source>Hide during screenshots</source>
+            <translation>截图时隐藏</translation>
+        </message>
+        <message>
+            <source>Hide in fullscreen</source>
+            <translation>全屏时隐藏</translation>
+        </message>
+        <message>
+            <source>Icon mode</source>
+            <translation>图标模式</translation>
+        </message>
+        <message>
+            <source>More tools</source>
+            <translation>更多工具</translation>
+        </message>
+        <message>
+            <source>QR code recognition</source>
+            <translation>二维码识别</translation>
+        </message>
+        <message>
+            <source>Screen recording</source>
+            <translation>屏幕录制</translation>
+        </message>
+        <message>
+            <source>Screenshot</source>
+            <translation>截图</translation>
+        </message>
+        <message>
+            <source>Toolbar mode</source>
+            <translation>工具栏模式</translation>
+        </message>
+    </context>
+    <context>
         <name>LanguageCatalog</name>
         <message>
             <source>Language name</source>
             <translation>简体中文</translation>
-        </message>
-    </context>
-    <context>
-        <name>MainContentHeaderWidget</name>
-        <message>
-            <source>Search settings and functions</source>
-            <translation>搜索设置和功能</translation>
         </message>
     </context>
     <context>
@@ -406,24 +450,24 @@ so every moment on screen can be expressed clearly and shared easily.</source>
             <translation>无法将 %1 注册为全局快捷键，请尝试其他按键</translation>
         </message>
         <message>
-            <source>%1 cannot be used as a drawing shortcut, try another key</source>
-            <translation>%1 不能用作绘制快捷键，请尝试其他按键</translation>
-        </message>
-        <message>
             <source>%1 cannot be used as a pinned window shortcut, try another key</source>
             <translation>%1 不能用作固定到屏幕窗口快捷键，请尝试其他快捷键</translation>
         </message>
         <message>
             <source>%1 cannot be used as a recording shortcut, try another key</source>
-            <translation>%1 不能用作录屏快捷键，请尝试其他按键</translation>
+            <translation>%1 不能用作屏幕录制快捷键，请尝试其他按键</translation>
         </message>
         <message>
             <source>%1 cannot be used as a screenshot shortcut, try another key</source>
             <translation>%1 不能用作截图快捷键，请尝试其他按键</translation>
         </message>
         <message>
-            <source>%1 is already assigned to another drawing tool, try another key</source>
-            <translation>%1 已分配给另一个绘制工具，请尝试其他按键</translation>
+            <source>%1 cannot be used as an annotation shortcut, try another key</source>
+            <translation>%1 不能用作标注快捷键，请尝试其他按键</translation>
+        </message>
+        <message>
+            <source>%1 is already assigned to another annotation tool, try another key</source>
+            <translation>%1 已分配给另一个标注工具，请尝试其他按键</translation>
         </message>
         <message>
             <source>%1 is already assigned to another pinned window action, try another key</source>
@@ -431,7 +475,7 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
         <message>
             <source>%1 is already assigned to another recording action, try another key</source>
-            <translation>%1 已分配给其他录屏操作，请尝试其他按键</translation>
+            <translation>%1 已分配给其他屏幕录制操作，请尝试其他按键</translation>
         </message>
         <message>
             <source>%1 is already assigned to another shortcut, try another key</source>
@@ -446,8 +490,8 @@ so every moment on screen can be expressed clearly and shared easily.</source>
             <translation>此平台不支持全局快捷键</translation>
         </message>
         <message>
-            <source>Invalid drawing shortcut</source>
-            <translation>无效的绘制快捷键</translation>
+            <source>Invalid annotation shortcut</source>
+            <translation>无效的标注快捷键</translation>
         </message>
         <message>
             <source>Invalid global shortcut</source>
@@ -459,7 +503,7 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
         <message>
             <source>Invalid recording shortcut</source>
-            <translation>无效的录屏快捷键</translation>
+            <translation>无效的屏幕录制快捷键</translation>
         </message>
         <message>
             <source>Invalid screenshot shortcut</source>
@@ -474,24 +518,24 @@ so every moment on screen can be expressed clearly and shared easily.</source>
             <translation>无法将此按键注册为全局快捷键，请尝试其他按键</translation>
         </message>
         <message>
-            <source>This key cannot be used as a drawing shortcut, try another key</source>
-            <translation>此按键不能用作绘制快捷键，请尝试其他按键</translation>
-        </message>
-        <message>
             <source>This key cannot be used as a pinned window shortcut, try another key</source>
             <translation>此快捷键不能用作固定到屏幕窗口快捷键，请尝试其他快捷键</translation>
         </message>
         <message>
             <source>This key cannot be used as a recording shortcut, try another key</source>
-            <translation>此按键不能用作录屏快捷键，请尝试其他按键</translation>
+            <translation>此按键不能用作屏幕录制快捷键，请尝试其他按键</translation>
         </message>
         <message>
             <source>This key cannot be used as a screenshot shortcut, try another key</source>
             <translation>此按键不能用作截图快捷键，请尝试其他按键</translation>
         </message>
         <message>
-            <source>This key is already assigned to another drawing tool, try another key</source>
-            <translation>此按键已分配给另一个绘制工具，请尝试其他按键</translation>
+            <source>This key cannot be used as an annotation shortcut, try another key</source>
+            <translation>此按键不能用作标注快捷键，请尝试其他按键</translation>
+        </message>
+        <message>
+            <source>This key is already assigned to another annotation tool, try another key</source>
+            <translation>此按键已分配给另一个标注工具，请尝试其他按键</translation>
         </message>
         <message>
             <source>This key is already assigned to another pinned window action, try another key</source>
@@ -499,7 +543,7 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
         <message>
             <source>This key is already assigned to another recording action, try another key</source>
-            <translation>此按键已分配给其他录屏操作，请尝试其他按键</translation>
+            <translation>此按键已分配给其他屏幕录制操作，请尝试其他按键</translation>
         </message>
         <message>
             <source>This key is already assigned to another shortcut, try another key</source>
@@ -512,6 +556,14 @@ so every moment on screen can be expressed clearly and shared easily.</source>
     </context>
     <context>
         <name>SectionHeaderWidget</name>
+        <message>
+            <source>Collapse %1</source>
+            <translation>收起%1</translation>
+        </message>
+        <message>
+            <source>Expand %1</source>
+            <translation>展开%1</translation>
+        </message>
         <message>
             <source>Refresh</source>
             <translation>刷新</translation>
@@ -534,6 +586,10 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         <message>
             <source>Expand navigation</source>
             <translation>展开导航</translation>
+        </message>
+        <message>
+            <source>Search Function</source>
+            <translation>搜索功能</translation>
         </message>
     </context>
     <context>
@@ -733,7 +789,7 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
         <message>
             <source>Finish capturing, recording, or exporting before updating.</source>
-            <translation>请先完成截图、录屏或导出，再进行更新。</translation>
+            <translation>请先完成截图、屏幕录制或导出，再进行更新。</translation>
         </message>
         <message>
             <source>Restart and update</source>

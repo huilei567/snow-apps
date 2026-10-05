@@ -429,6 +429,10 @@
             <translation>永遠置於最上層</translation>
         </message>
         <message>
+            <source>Annotation mode</source>
+            <translation>標註模式</translation>
+        </message>
+        <message>
             <source>Cancel</source>
             <translation>取消</translation>
         </message>
@@ -497,12 +501,8 @@
             <translation>顯示文字辨識結果</translation>
         </message>
         <message>
-            <source>Drawing mode</source>
-            <translation>繪製模式</translation>
-        </message>
-        <message>
-            <source>Enable drawing mode</source>
-            <translation>啟用繪製模式</translation>
+            <source>Enable annotation mode</source>
+            <translation>啟用標註模式</translation>
         </message>
         <message>
             <source>Exit click-through mode</source>
@@ -535,10 +535,6 @@
         <message>
             <source>Image file</source>
             <translation>影像檔案</translation>
-        </message>
-        <message>
-            <source>Image files (%1)</source>
-            <translation>影像檔案 (%1)</translation>
         </message>
         <message>
             <source>Image size is too large.</source>
@@ -611,6 +607,10 @@
         <message>
             <source>Show main interface</source>
             <translation>顯示主介面</translation>
+        </message>
+        <message>
+            <source>Supported files (%1)</source>
+            <translation>支援的檔案 (%1)</translation>
         </message>
         <message>
             <source>The image could not be saved automatically: %1</source>

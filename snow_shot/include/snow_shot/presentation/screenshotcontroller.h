@@ -24,12 +24,32 @@ class SnowShotApiClient;
 class ScreenshotExportArtifact;
 class ScreenRecordingController;
 struct ScreenshotClipboardContent;
+struct ScreenshotClipboardContentSnapshot;
 struct ScreenshotHistoryEntry;
 
 class ScreenshotController : public QObject {
     Q_OBJECT
 
   public:
+    enum class CaptureAction {
+        None,
+        Pin,
+        RecognizeText,
+        RecognizeTextTranslation,
+        Copy,
+        Save,
+        QuickSave,
+        StartVideo,
+        StartScrolling,
+        RecognizeTable,
+        RecognizeQr,
+        RecognizeFormula,
+        ConvertMarkdown,
+        ConvertHtml,
+    };
+    Q_ENUM(CaptureAction)
+    [[nodiscard]] bool captureForAction(CaptureAction action);
+    void pinDroppedContent(ScreenshotClipboardContentSnapshot snapshot, QStringList paths);
     explicit ScreenshotController(
         QObject* parent = nullptr,
         snow_shot::presentation::PinnedWindowGroupManager* groupManager = nullptr,
@@ -38,6 +58,7 @@ class ScreenshotController : public QObject {
     ~ScreenshotController() override;
     void pinSelectedFilesToScreen(snow_shot::platform::SelectedFileTarget target);
     [[nodiscard]] bool captureAvailable() const;
+    void setCaptureSuspended(bool suspended);
     [[nodiscard]] bool captureAcquisitionActive() const;
     [[nodiscard]] bool blocksApplicationUpdate() const;
     [[nodiscard]] bool beginGlobalMouseCapture(
@@ -103,6 +124,7 @@ class ScreenshotController : public QObject {
     void mcpRedoCanvasEdit();
 
   signals:
+    void captureActivityChanged(const QString& source, bool active);
     void selectedFilePinFailed(const QString& message);
     void showMainWindowRequested();
     void accessibilityPermissionRequested();

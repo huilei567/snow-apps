@@ -423,7 +423,15 @@ fn output_schema() -> serde_json::Map<String, Value> {
 
 impl ServerHandler for SnowShotMcp {
     fn supported_protocol_versions(&self) -> Cow<'static, [rmcp::model::ProtocolVersion]> {
-        Cow::Borrowed(&[rmcp::model::ProtocolVersion::V_2026_07_28])
+        // 2026-07-28 drops the stdio `initialize` handshake in favour of
+        // per-request metadata, so rmcp's stdio negotiator can only answer a
+        // client when at least one legacy (<2026-07-28) version is available to
+        // fall back to. Keep a legacy revision alongside the newest one,
+        // otherwise every stdio client fails with -32022.
+        Cow::Borrowed(&[
+            rmcp::model::ProtocolVersion::V_2026_07_28,
+            rmcp::model::ProtocolVersion::V_2025_11_25,
+        ])
     }
 
     fn get_info(&self) -> ServerConfig {
@@ -627,6 +635,55 @@ impl ServerHandler for SnowShotMcp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn eraser_discovery_exposes_tools_and_width_only_style_for_both_domains() {
+        let tools = SnowShotMcp::tools();
+        for (name, enumeration) in [
+            ("snow_shot_screenshot_set_tool", "CanvasTool"),
+            ("snow_shot_document_set_tool", "DocumentCanvasTool"),
+        ] {
+            let tool = tools.iter().find(|tool| tool.name == name).unwrap();
+            let values = tool.input_schema["$defs"][enumeration]["enum"]
+                .as_array()
+                .unwrap();
+            for id in ["eraser", "rectangle_eraser", "brush_eraser"] {
+                assert!(values.contains(&json!(id)), "{name}: {id}");
+            }
+        }
+        for name in [
+            "snow_shot_screenshot_set_tool_style",
+            "snow_shot_document_set_tool_style",
+        ] {
+            let tool = tools.iter().find(|tool| tool.name == name).unwrap();
+            let definitions = &tool.input_schema["$defs"];
+            assert_eq!(
+                definitions["BrushEraserTarget"]["enum"],
+                json!(["brush_eraser"])
+            );
+            let patch = &definitions["BrushEraserStylePatch"];
+            assert_eq!(patch["additionalProperties"], json!(false));
+            assert_eq!(patch["required"], json!(["stroke_width"]));
+            assert_eq!(patch["properties"].as_object().unwrap().len(), 1);
+            let width = &definitions["BrushEraserWidth"];
+            assert_eq!(width["type"], json!("number"));
+            assert_eq!(width["minimum"], json!(1.0));
+            assert_eq!(width["maximum"], json!(72.0));
+            assert!(
+                !definitions["StyleTarget"]["enum"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("brush_eraser"))
+            );
+            assert!(
+                !definitions["FilterKind"]["enum"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("restore_background"))
+            );
+        }
+    }
+
     #[test]
     fn artifact_raw_chunks_become_json_data_without_image_content() {
         for bytes in [Vec::new(), br#"{"text":"owned"}"#.to_vec()] {

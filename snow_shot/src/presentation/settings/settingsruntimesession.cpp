@@ -23,6 +23,8 @@ SettingsCustomRenderer toolbarRenderer(storage::ScreenshotToolbarLayoutKind kind
         return SettingsCustomRenderer::DrawingToolbarEditor;
     case storage::ScreenshotToolbarLayoutKind::ActionTools:
         return SettingsCustomRenderer::ScreenshotToolbarEditor;
+    case storage::ScreenshotToolbarLayoutKind::FloatingTools:
+        return SettingsCustomRenderer::FloatingToolbarEditor;
     case storage::ScreenshotToolbarLayoutKind::PinnedActionTools:
         return SettingsCustomRenderer::PinnedToolbarEditor;
     }
@@ -129,6 +131,11 @@ SettingsRuntimeSession::SettingsRuntimeSession(const SettingsRegistry& registry,
 
 const SettingsRegistry& SettingsRuntimeSession::registry() const {
     return m_registry;
+}
+
+SettingsOptions SettingsRuntimeSession::options(const QString& fieldId) const {
+    const auto* descriptor = descriptorFor(fieldId);
+    return descriptor != nullptr ? buildOptions(*descriptor) : SettingsOptions{};
 }
 
 SettingsFieldState SettingsRuntimeSession::state(const QString& fieldId) const {
@@ -746,6 +753,9 @@ void SettingsRuntimeSession::refreshField(const QString& fieldId,
     } else {
         next.enabled = currentStatus.writeAvailable;
         if (const auto* select =
+                std::get_if<SettingsSelectDefinition>(&descriptor->definition->payload))
+            next.enabled = next.enabled && m_backend.selectEnabled(select->binding);
+        if (const auto* select =
                 std::get_if<SettingsSelectDefinition>(&descriptor->definition->payload);
             select != nullptr &&
             select->binding == SettingsSelectBinding::TranslationLayoutProcessing) {
@@ -794,6 +804,11 @@ void SettingsRuntimeSession::refreshAll() {
     for (const SettingsFieldDescriptor& descriptor : m_registry.fields()) {
         refreshField(descriptor.id);
         refreshOptions(descriptor);
+        if (descriptor.definition != nullptr) {
+            if (const auto* file =
+                    std::get_if<SettingsFilePathDefinition>(&descriptor.definition->payload))
+                refreshFilePathStatus(file->binding);
+        }
     }
     refreshAuxiliaryInteger(SettingsIntegerBinding::ScreenshotDelaySeconds);
     refreshCommandStates();
@@ -806,6 +821,18 @@ void SettingsRuntimeSession::refreshAll() {
         emit storageStateChanged(currentStatus);
     }
     emit refreshed();
+}
+
+void SettingsRuntimeSession::refreshFilePathStatus(SettingsFilePathBinding binding) {
+    const int key = static_cast<int>(binding);
+    const FilePathStatus next{m_backend.filePathStatus(binding),
+                              m_backend.filePathStatusError(binding)};
+    const auto current = m_filePathStatuses.constFind(key);
+    if (current != m_filePathStatuses.cend() && current->text == next.text &&
+        current->error == next.error)
+        return;
+    m_filePathStatuses.insert(key, next);
+    emit filePathStatusChanged(binding);
 }
 
 void SettingsRuntimeSession::refreshAuxiliaryInteger(SettingsIntegerBinding binding) {
@@ -956,6 +983,9 @@ QVariant SettingsRuntimeSession::readValue(const SettingsFieldDescriptor& descri
                 case SettingsCustomRenderer::DrawingToolbarEditor:
                     return QVariant::fromValue(m_backend.toolbarLayout(
                         storage::ScreenshotToolbarLayoutKind::DrawingTools));
+                case SettingsCustomRenderer::FloatingToolbarEditor:
+                    return QVariant::fromValue(m_backend.toolbarLayout(
+                        storage::ScreenshotToolbarLayoutKind::FloatingTools));
                 case SettingsCustomRenderer::PinnedToolbarEditor:
                     return QVariant::fromValue(m_backend.toolbarLayout(
                         storage::ScreenshotToolbarLayoutKind::PinnedActionTools));
@@ -1034,6 +1064,11 @@ bool SettingsRuntimeSession::writeValue(const SettingsFieldDescriptor& descripto
                 case SettingsCustomRenderer::PermissionInputMonitoring:
                 case SettingsCustomRenderer::PermissionMicrophone:
                     return {};
+                case SettingsCustomRenderer::FloatingToolbarEditor:
+                    return value.canConvert<storage::ScreenshotToolbarLayout>() &&
+                           m_backend.applyToolbarLayout(
+                               storage::ScreenshotToolbarLayoutKind::FloatingTools,
+                               value.value<storage::ScreenshotToolbarLayout>());
                 case SettingsCustomRenderer::PinnedToolbarEditor:
                     return value.canConvert<storage::ScreenshotToolbarLayout>() &&
                            m_backend.applyToolbarLayout(
@@ -1153,7 +1188,8 @@ bool SettingsRuntimeSession::valuesEqual(const SettingsFieldDescriptor& descript
         const auto& custom = std::get<SettingsCustomDefinition>(descriptor.definition->payload);
         if (custom.renderer == SettingsCustomRenderer::DrawingToolbarEditor ||
             custom.renderer == SettingsCustomRenderer::ScreenshotToolbarEditor ||
-            custom.renderer == SettingsCustomRenderer::PinnedToolbarEditor) {
+            custom.renderer == SettingsCustomRenderer::PinnedToolbarEditor ||
+            custom.renderer == SettingsCustomRenderer::FloatingToolbarEditor) {
             return first.value<storage::ScreenshotToolbarLayout>() ==
                    second.value<storage::ScreenshotToolbarLayout>();
         }
@@ -1196,6 +1232,8 @@ SettingsRuntimeSession::buildOptions(const SettingsFieldDescriptor& descriptor) 
             result.values.push_back({option.value, option.label.translated()});
         }
         result.values.append(dynamicSelectOptions(select->binding));
+        result.loading = m_backend.selectOptionsLoading(select->binding);
+        result.error = m_backend.selectOptionsError(select->binding);
     } else if (const auto* multi =
                    std::get_if<SettingsMultiSelectDefinition>(&descriptor.definition->payload)) {
         for (const SettingsOptionDefinition& option : multi->options) {
@@ -1392,7 +1430,27 @@ QString SettingsRuntimeSession::filePathValue(SettingsFilePathBinding binding) c
 bool SettingsRuntimeSession::applyFilePathValue(SettingsFilePathBinding binding,
                                                 const QString& value) {
     const auto* descriptor = descriptorForFile(binding);
-    return descriptor != nullptr && submitDraft(descriptor->id, value);
+    if (descriptor == nullptr)
+        return false;
+    const bool skinPath = binding == SettingsFilePathBinding::SkinPath ||
+                          binding == SettingsFilePathBinding::ToolbarSkinPath ||
+                          binding == SettingsFilePathBinding::TrayMenuSkinPath;
+    const QString normalizedValue = skinPath ? value.trimmed() : value;
+    const QString previousValue = m_backend.filePathValue(binding);
+    const bool accepted = submitDraft(descriptor->id, normalizedValue);
+    // Re-entering the same skin path explicitly reloads the file, including a
+    // file that was replaced or repaired without changing its name.
+    if (accepted && skinPath && previousValue == normalizedValue)
+        m_backend.reloadFilePathValue(binding);
+    return accepted;
+}
+
+QString SettingsRuntimeSession::filePathStatus(SettingsFilePathBinding binding) const {
+    return m_backend.filePathStatus(binding);
+}
+
+bool SettingsRuntimeSession::filePathStatusError(SettingsFilePathBinding binding) const {
+    return m_backend.filePathStatusError(binding);
 }
 
 QString SettingsRuntimeSession::directoryPathValue(SettingsDirectoryPathBinding binding) const {
@@ -1536,8 +1594,9 @@ SettingsActionState SettingsRuntimeSession::actionState(SettingsActionBinding bi
     return m_backend.actionState(binding);
 }
 
-bool SettingsRuntimeSession::triggerAction(SettingsActionBinding binding, const QString& filePath) {
-    return m_backend.triggerAction(binding, filePath);
+bool SettingsRuntimeSession::triggerAction(SettingsActionBinding binding, const QString& filePath,
+                                           bool includeToolbarStyles) {
+    return m_backend.triggerAction(binding, filePath, includeToolbarStyles);
 }
 
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION

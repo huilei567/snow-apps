@@ -6,6 +6,7 @@
 #include "snow_shot/presentation/screenshotpinnedwindow.h"
 #include "snow_shot/presentation/screenshothistorytypes.h"
 #include "snow_shot/presentation/screenshotselectionpin.h"
+#include "snow_shot/presentation/pinnedgeometry.h"
 #include "snow_shot/presentation/pinnedwindowgroupmanager.h"
 #include "snow_shot/presentation/screenshotocrrecognitionservice.h"
 #include "snow_shot/presentation/screenshotqrrecognitionservice.h"
@@ -787,6 +788,25 @@ bool ScreenshotSelectionExportUiServices::presentPinnedImageArtifact(
     return true;
 }
 
+bool ScreenshotSelectionExportUiServices::presentDecodedContentOnScreen(
+    ScreenshotClipboardContent content, QScreen* screen, bool autoResizeWindow,
+    snow_shot::storage::PinnedWindowCreationSource source) {
+    if (screen == nullptr || !content.isValid()) {
+        return false;
+    }
+    const qreal rasterScale = content.isFormattedText() ? content.formattedTextDevicePixelRatio
+                                                        : screen->devicePixelRatio();
+    const ScreenshotPinnedImageFit fit = snow_shot::presentation::fitPinnedImageOnScreen(
+        *screen, snow_shot::presentation::pinnedImageWindowSize(content.image, rasterScale),
+        autoResizeWindow);
+    return fit.valid &&
+           presentPinnedImage(content.image, screen, fit.nativeGeometry, fit.initialWindowSize,
+                              std::move(content.formattedDocument), content.plainText,
+                              content.formattedTextDevicePixelRatio,
+                              std::move(content.originalContent), {}, {}, {}, {}, source,
+                              std::move(content.sourceIdentity));
+}
+
 bool ScreenshotSelectionExportUiServices::presentPinnedImage(
     const QImage& image, QScreen* screen, const QRect& nativeGeometry,
     const QSize& initialWindowSize, std::shared_ptr<QTextDocument> formattedTextDocument,
@@ -1126,7 +1146,10 @@ bool ScreenshotSelectionExportUiServices::presentRestoredRecord(
     config.qrRecognition = m_qrRecognition;
     config.tableRecognition = m_tableRecognition;
     config.recognitionProvider = m_recognitionProvider;
-    applyPersistence(&config, record.id);
+    // A disk decode has a new QImage cache key, but the repository still owns
+    // the same immutable source. Save state without replacing/re-encoding it.
+    // Explicit content replacement uses replacementPersistenceWriter instead.
+    applyPersistence(&config, record.id, true);
 
     std::shared_ptr<QTextDocument> formattedDocument;
     if (record.sourceKind == snow_shot::storage::PinnedWindowSourceKind::ClipboardText) {

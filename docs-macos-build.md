@@ -19,7 +19,9 @@ packaging requires both editions and rejects a Mini-disabled cache.
 Mini removes QR, table, Markdown, HTML, LaTeX, translation, Extended Features,
 and API Configuration. Manual text recognition remains available; its toolbar
 button is hidden by default, and Pin to Screen automatic recognition is off.
-Both macOS bundles include the local OCR worker, runtime, and default models.
+Both macOS bundles include the local OCR worker and runtime. Full also bundles
+the default Small V6 model; Mini downloads the selected model on first use and
+reuses its verified cache afterward.
 
 ```sh
 scripts/build.sh snow-shot-macos-arm64-debug --target snow_shot_mini
@@ -59,6 +61,27 @@ before switching channels because both install `Snow Shot.app`. User data and
 the signing identity are retained. Each release needs its versioned DMG and a
 GitHub SHA-256 digest or matching `.sha256` asset. When both are present, both
 must match; the workflow packages only verified release assets.
+
+If Homebrew says `Casks/snow-shot.rb` does not exist and suggests only
+`snow-shot@beta`, its local tap checkout has not received the stable cask yet.
+Refresh the tap before retrying:
+
+```sh
+brew update
+brew info --cask mg-chao/tap/snow-shot
+brew install --cask mg-chao/tap/snow-shot
+```
+
+Homebrew may defer automatic updates, and `HOMEBREW_NO_AUTO_UPDATE` disables
+them. If the stable cask is still missing after `brew update`, inspect the tap
+checkout and its remote before changing or removing it:
+
+```sh
+tap_dir="$(brew --repository mg-chao/tap)"
+git -C "$tap_dir" status --short --branch
+git -C "$tap_dir" remote -v
+ls "$tap_dir/Casks/snow-shot.rb"
+```
 
 Finish recordings and quit Snow Shot before upgrading or uninstalling. Homebrew
 owns the final application placement and removal; the cask's preflight verifies
@@ -304,10 +327,12 @@ or privacy grants.
 
 ## Prerequisites
 
-- Xcode command-line tools (`xcode-select --install`) or Xcode, with a macOS 15+ SDK.
+- Xcode 16+ or Apple Command Line Tools (`xcode-select --install`), with a macOS 15+ SDK.
+  The static Qt builder permits Command Line Tools without full Xcode and retains
+  Qt's SDK version checks.
 - Rust installed through rustup. The checked-in toolchain pins Rust 1.97.1.
 - CMake 4.2+, Ninja, pkg-config, Git and Python 3. Intel codec builds also need NASM.
-- The official **Qt 6.11.1 macOS** kit, including Qt SVG and Linguist tools,
+- The official **Qt 6.12.0 LTS macOS** kit, including Qt SVG and Linguist tools,
   for Debug and performance builds. Release and fast builds use the repository's
   audited static Qt build for the selected architecture.
 
@@ -315,10 +340,10 @@ For example, install host tools with `brew install cmake ninja pkgconf nasm`.
 The scripts also recognize tools already installed under `.tools/macos-dev/bin`
 and `.tools/macos-media/host/bin`. They do not modify global tool installations.
 
-Set `Qt6_DIR` if Qt is not at `$HOME/Qt/6.11.1/macos/lib/cmake/Qt6`:
+Set `Qt6_DIR` if Qt is not at `$HOME/Qt/6.12.0/macos/lib/cmake/Qt6`:
 
 ```sh
-export Qt6_DIR=/path/to/Qt/6.11.1/macos/lib/cmake/Qt6
+export Qt6_DIR=/path/to/Qt/6.12.0/macos/lib/cmake/Qt6
 scripts/bootstrap-macos.sh
 scripts/build.sh
 scripts/run-snow-shot.sh
@@ -346,20 +371,38 @@ dependency closure:
 scripts/bootstrap-macos.sh snow-shot-macos-arm64-release --skip-qt-validation
 scripts/build-static-qt.sh \
   --arch arm64 \
-  --install-prefix "$HOME/Qt/6.11.1/macos-static-arm64" \
+  --install-prefix "$HOME/Qt/6.12.0/macos-static-arm64" \
   --parallel 8
-export SNOW_QT_STATIC_DIR="$HOME/Qt/6.11.1/macos-static-arm64/lib/cmake/Qt6"
+export SNOW_QT_STATIC_DIR="$HOME/Qt/6.12.0/macos-static-arm64/lib/cmake/Qt6"
 scripts/build.sh snow-shot-macos-arm64-release --parallel 8
 ```
 
+`SNOW_QT_STATIC_DIR` takes precedence over `Qt6_DIR` for release and fast builds.
+Keep `Qt6_DIR` pointed at the shared kit for Debug and performance builds.
+
 Use `x64` and `macos-static-x64` for an Intel build. The static Qt script pins
-the architecture and Qt's required 14.0 library deployment target (the Snow Shot
+the architecture and Qt's supported 14.4 library deployment target (the Snow Shot
 app still targets macOS 15.0), enables LTO and system libpng/zlib, installs Qt
 source-license metadata, disables the macOS-27-only `dup3` path for compatibility
 with the supported deployment range, and records an audited build stamp. It
 reuses a matching installation; pass `--force` only when intentionally replacing
 that prefix. Release and fast entry points reject a shared, unstamped, wrong-arch,
 or wrong-version Qt kit.
+
+`scripts/qt-toolchain.json` pins the Qt version, official source-archive
+SHA-256, and macOS Qt library deployment target. The static builder verifies the
+archive before extracting it and checks an existing source tree's qtbase version
+and supported macOS runtime floor before configuring. Shared and static entry
+points check the installed Qt package
+versions and the actual Release binary's architecture, independently of an
+audited stamp. A kit from the previous Qt release must be rebuilt in its own
+6.12.0 install prefix.
+
+The feature-policy fingerprint and installed Qt target exports are also checked
+before reusing a production kit. Time-zone handling remains enabled; Cocoa
+continues to provide native time-zone names, and Qt's optional CLDR name tables
+remain disabled on Apple platforms. Use a distinct install prefix to preserve
+an older kit when refreshing the audited schema.
 
 ## Presets and targeted checks
 
@@ -473,8 +516,9 @@ avoid that identity change. Switching from ad-hoc to certificate signing require
 granting permission to the new identity once; later rebuilds retain that grant.
 
 Apple Silicon OCR uses native CPU inference with all seven existing V4/V5/V6
-models. The ARM64 app bundles its worker, ONNX Runtime, and Small V6 model;
-other models download on demand into application storage. No OCR runtime code
+models. Both ARM64 editions bundle their worker and ONNX Runtime. Full also
+bundles Small V6; Mini bundles no model files. Missing selected models download
+on demand into application storage. No OCR runtime code
 is downloaded on macOS. Intel OCR qualification is outside this delivery.
 The Windows updater/installer and DirectML remain Windows-only.
 
@@ -503,7 +547,7 @@ remain available for media harness development.
 
 ## Apple Silicon OCR validation
 
-The runtime uses protocol 4. Its generated schema-3 manifest records
+The runtime uses protocol 5. Its generated schema-3 manifest records
 `macos-arm64`, `delivery: bundled`, static linkage, the executable name, and the
 size/SHA-256 of the worker. ONNX Runtime is linked into the worker in release
 packages; shared development builds still stage `libonnxruntime.dylib`. The
@@ -517,7 +561,9 @@ the ARM64 app; verified downloaded models remain reusable.
 
 Build staging checks content on every relevant target build, including a worker-only
 change followed by a host build. Model downloads are verified before promotion and
-cached under `artifacts/`. Packaging requires a complete Small V6 payload. Deployment
+cached under `artifacts/`. Full packaging requires a complete Small V6 payload;
+Mini staging removes previously bundled models and packaging rejects model files
+or directories. Deployment
 resolves the pinned native dependency closure, rewrites relocatable Mach-O loads,
 and signs nested code, generates hashes of the finalized
 runtime, then seals the enclosing app. CPack signs and verifies the DMG before
@@ -558,22 +604,36 @@ the same session, and the worker's resident bytes sampled after each result (not
 peak RSS). Cold means a new worker/model session, without flushing the operating
 system's file cache. They are hardware-dependent observations, not a latency guarantee.
 
-After packaging, relocate the app to a path containing spaces or Unicode and test
-the exact bundle without modifying its signature:
+For a shared performance deployment, relocate the app to a path containing
+spaces or Unicode and test the exact bundle with the matching shared-runtime
+recognition helper, without modifying its signature:
 
 ```sh
 "$OCR_TEST" --bundle="/path/to/Relocated Snow Shot.app" --offline
 "$OCR_TEST" --bundle="/path/to/Relocated Snow Shot.app" --model=extra_small --cache="/tmp/snow-ocr-cache"
 "$OCR_TEST" --bundle="/path/to/Relocated Snow Shot.app" --model=extra_small --cache="/tmp/snow-ocr-cache" --offline
-python3 scripts/snow-shot-macos-ocr.py verify \
-  --runtime-dir="/path/to/Relocated Snow Shot.app/Contents/MacOS" \
-  --app="/path/to/Relocated Snow Shot.app"
 ```
 
-The first run uses a fresh temporary cache and an unreachable download proxy. The
-second acquires another model; the third proves cache reuse without network access.
+For a static Release package, verify its finalized runtime and startup separately:
+
+```sh
+python3 scripts/snow-shot-macos-ocr.py verify \
+  --static-runtime \
+  --runtime-dir="/path/to/Relocated Snow Shot.app/Contents/MacOS" \
+  --app="/path/to/Relocated Snow Shot.app"
+"/path/to/Relocated Snow Shot.app/Contents/MacOS/snow_shot" --startup-probe
+```
+
+The recognition helper's first run uses a fresh temporary cache and an unreachable
+download proxy. The second acquires another model; the third proves cache reuse
+without network access.
 Run with `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`, and `ORT_DYLIB_PATH` unset.
 Also launch the packaged app through Finder and check its screenshot-to-OCR flow.
+
+For Mini, add `--runtime-only` to the Python verification command and use
+`Snow Shot Mini.app` / `snow_shot_mini` for the app and executable paths. A fresh Mini
+cache needs the selected model download before offline recognition can work;
+repeat recognition with the same cache to verify offline reuse.
 
 ## Screenshots
 

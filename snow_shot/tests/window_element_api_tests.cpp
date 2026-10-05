@@ -71,7 +71,7 @@ void settingsPersistAndResetToUia(const QString& configurationPath) {
     snow_shot::presentation::GlobalShortcutManager shortcuts;
     settings::BuiltInSettingsBackend backend(shortcuts);
     constexpr auto binding = settings::SettingsSelectBinding::WindowElementApi;
-    constexpr auto cursorBinding = settings::SettingsSwitchBinding::ScreenshotCaptureCursor;
+    constexpr auto cursorBinding = settings::SettingsSwitchBinding::ScreenshotShowCursor;
     require(backend.selectValue(binding) == QStringLiteral("uia"),
             "Window Element API must initially select UIA");
     require(!backend.switchValue(cursorBinding) && backend.applySwitchValue(cursorBinding, true) &&
@@ -188,6 +188,42 @@ void autoRecognizeQrCodeSettingsPersistAndReset(const QString& configurationPath
     require(!invalid.valid, "automatic QR recognition preference must reject nonboolean values");
 }
 
+void recordingApiModePersistsAndResets(const QString& configurationPath) {
+    snow_shot::presentation::GlobalShortcutManager shortcuts;
+    settings::BuiltInSettingsBackend backend(shortcuts);
+    constexpr auto binding = settings::SettingsSelectBinding::ScreenRecordingApiMode;
+    require(backend.selectValue(binding) == QStringLiteral("dxgi"),
+            "recording API must default to DXGI");
+    const QString screenshotApi = storage::ScreenshotSettings().apiMode();
+    for (const auto& mode :
+         {QStringLiteral("dxgi"), QStringLiteral("wgc"), QStringLiteral("gdi")}) {
+        require(backend.applySelectValue(binding, mode) && backend.selectValue(binding) == mode &&
+                    storage::RecordingSettings().apiMode() == mode,
+                "recording API selection must update storage");
+        require(storage::ApplicationStorage::instance().configuration().flushNow().success,
+                "recording API must be flushable");
+        storage::ConfigurationStore reloaded(configurationPath, true, true, 60000);
+        require(reloaded.value(QStringLiteral("screen_recording/api_mode")) == mode,
+                "recording API must survive a configuration reload");
+    }
+    for (const auto& invalid : {QString(), QStringLiteral("auto"), QStringLiteral("unknown")}) {
+        require(!backend.applySelectValue(binding, invalid) &&
+                    backend.selectValue(binding) == QStringLiteral("gdi"),
+                "invalid recording API values must be rejected without changing the setting");
+    }
+    require(storage::ScreenshotSettings().apiMode() == screenshotApi,
+            "recording API selection must not change screenshot API");
+    require(backend.resetSection(settings::SettingsSectionReset::ScreenRecording) &&
+                backend.selectValue(binding) == QStringLiteral("gdi"),
+            "function recording settings reset must preserve system recording API");
+    require(backend.resetSection(settings::SettingsSectionReset::ScreenshotCapture) &&
+                backend.selectValue(binding) == QStringLiteral("gdi"),
+            "screenshot settings reset must preserve recording API");
+    require(backend.resetSection(settings::SettingsSectionReset::ScreenRecordingCapture) &&
+                backend.selectValue(binding) == QStringLiteral("dxgi"),
+            "system recording settings reset must restore DXGI");
+}
+
 void ownUiCapturePreferencesPersistAndReset() {
     snow_shot::presentation::GlobalShortcutManager shortcuts;
     settings::BuiltInSettingsBackend backend(shortcuts);
@@ -276,6 +312,36 @@ void toolbarLayoutSectionResetsRemainIndependent() {
                 backend.toolbarLayout(storage::ScreenshotToolbarLayoutKind::DrawingTools) ==
                     defaultDrawingLayout,
             "Drawing reset must restore only the drawing toolbar layout");
+}
+
+void screenshotGuideSettingsPersistAndReset() {
+    snow_shot::presentation::GlobalShortcutManager shortcuts;
+    settings::BuiltInSettingsBackend backend(shortcuts);
+    const storage::ScreenshotUiSettings ui;
+    const storage::ScreenshotShortcutSettings shortcutSettings;
+    require(ui.setShowGuidesByDefault(true) && ui.setCursorGuideLineColor(QColor(12, 34, 56, 78)) &&
+                ui.setSelectionCenterGuideLineColor(QColor(22, 33, 44, 55)) &&
+                ui.setMonitorCenterGuideLineColor(QColor(90, 80, 70, 60)) &&
+                shortcutSettings.setShortcuts(QStringLiteral("toggle_guides"),
+                                              {QStringLiteral("Ctrl+G")}),
+            "guide settings must accept saved preferences and a remapped shortcut");
+    require(ui.showGuidesByDefault() && ui.cursorGuideLineColor() == QColor(12, 34, 56, 78) &&
+                ui.selectionCenterGuideLineColor() == QColor(22, 33, 44, 55) &&
+                ui.monitorCenterGuideLineColor() == QColor(90, 80, 70, 60) &&
+                shortcutSettings.toggleGuides().size() == 1 &&
+                shortcutSettings.toggleGuides().first().portableText == QStringLiteral("Ctrl+G"),
+            "saved guide preferences and shortcut must remain intact before reset");
+
+    require(backend.resetSection(settings::SettingsSectionReset::ScreenshotInterfaceSettings) &&
+                !ui.showGuidesByDefault() && ui.cursorGuideLineColor() == QColor(0, 0, 0) &&
+                ui.selectionCenterGuideLineColor() == QColor(0x40, 0x96, 0xff) &&
+                ui.monitorCenterGuideLineColor() == QColor(255, 0, 0) &&
+                shortcutSettings.toggleGuides().first().portableText == QStringLiteral("Ctrl+G"),
+            "screenshot interface reset must restore guide defaults without resetting shortcuts");
+    require(backend.resetSection(settings::SettingsSectionReset::ScreenshotEditorShortcuts) &&
+                shortcutSettings.toggleGuides().size() == 1 &&
+                shortcutSettings.toggleGuides().first().portableText == QStringLiteral("Alt"),
+            "screenshot shortcut reset must restore the standalone Alt guide shortcut");
 }
 
 #ifndef Q_OS_MACOS
@@ -641,7 +707,8 @@ void nativeWindowIdentitySurvivesClientCallbacksAndRefinement() {
         require(received.nativeWindowId == hit, "client must copy native window identity");
         require(client.startRefinement(received), "native identity refinement rejected");
         const auto& query = refinements.last().query;
-        require(query.window_id == hit.value_or(0) && query.window_hit_tested == hit.has_value(),
+        require(query.window_id == hit.value_or(0) &&
+                    (query.window_hit_tested != 0) == hit.has_value(),
                 "refinement must preserve desktop, window, and unresolved native hits");
     }
     automaticReply = true;
@@ -720,6 +787,11 @@ int main(int argc, char** argv) {
         applicationStorage.shutdown();
         return 0;
     }
+    if (application.arguments().contains(QStringLiteral("--guide-settings-only"))) {
+        screenshotGuideSettingsPersistAndReset();
+        applicationStorage.shutdown();
+        return 0;
+    }
     const bool selectorOnly = application.arguments().contains(QStringLiteral("--selector-only"));
     if (application.arguments().contains(
             QStringLiteral("--shortcut-exit-confirmation-settings-only"))) {
@@ -735,6 +807,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (!selectorOnly) {
+        recordingApiModePersistsAndResets(temporary.filePath(QStringLiteral("data/config.json")));
         settingsPersistAndResetToUia(temporary.filePath(QStringLiteral("data/config.json")));
         shutterSoundSettingsPersistAndReset(temporary.filePath(QStringLiteral("data/config.json")));
         shortcutExitConfirmationSettingsPersistAndReset(
@@ -743,6 +816,7 @@ int main(int argc, char** argv) {
             temporary.filePath(QStringLiteral("data/config.json")));
         ownUiCapturePreferencesPersistAndReset();
         toolbarLayoutSectionResetsRemainIndependent();
+        screenshotGuideSettingsPersistAndReset();
     }
 #ifndef Q_OS_MACOS
     changedApiRefreshesServiceAndRejectsOldResults();

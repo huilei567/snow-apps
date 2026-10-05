@@ -51,6 +51,8 @@ class SnowCanvasRuntime {
     bool canRedo() const;
     quint64 documentRevision() const;
     void setDocumentChangedHandler(std::function<void()> handler);
+    // Detaches clients immediately. Engine storage is released by the process cleanup worker,
+    // without waiting in the runtime owner's destructor.
     void destroyAsync();
     void setBaseImageSources(const QList<SnowCanvasBaseImageSource>& sources);
     SnowCanvasSmartEraseSnapshot smartEraseSnapshot() const;
@@ -83,13 +85,19 @@ class SnowCanvasRuntimeEditor final {
     bool setTextStyleFromToolbar(const SnowCanvasTextStyle&,
                                  quint32 properties = SnowCanvasTextStyleAllProperties);
     bool setSerialNumberStyleFromToolbar(const SnowCanvasSerialNumberStyle&);
+    bool setSerialNumberStyleFromToolbar(const SnowCanvasSerialNumberStyle&, quint32 properties);
     bool setFilterStyleFromToolbar(const SnowCanvasFilterStyle&, quint32);
+    bool
+    setBrushEraserCreationStyle(const SnowCanvasBrushEraserStyle&,
+                                quint32 properties = SnowCanvasBrushEraserStylePropertyStrokeWidth);
     bool setWatermarkConfigFromToolbar(const SnowCanvasWatermarkConfig&);
     bool setSpotlightConfigFromToolbar(const SnowCanvasSpotlightConfig&);
     bool select(quint32 index, quint32 generation);
     bool deleteSelected();
     bool deleteAllElements();
-    bool erasePath(const QList<QPointF>& points);
+    // Rectangle Eraser uses two corners; Brush Eraser accepts a stroke or a single dot.
+    bool erasePath(const QList<QPointF>& points,
+                   SnowCanvasTool eraserTool = SnowCanvasTool::Eraser);
     bool duplicateSelected(QPointF offset = QPointF(20, 20));
     bool reorderSelected(SnowCanvasSelectionOrder);
     bool alignSelected(SnowCanvasSelectionAlignment);

@@ -1,3 +1,4 @@
+#include "snow_draw_engine_qt/snow_canvas_image.h"
 #include "snow_canvas_smart_erase.h"
 #include "snow_canvas_export.h"
 
@@ -155,6 +156,8 @@ void renderRuntimeScene(QPainter& painter, const ExportProjection& projection,
         &displayCache,
         &penMaskAtlas,
     };
+    // Export sources are composed over transparency, including pixels restored by erasers.
+    request.clearBackgroundEnabled = false;
     request.smartErase = smartErase;
     request.executionPlan = &executionPlan;
     snow_canvas_renderer::renderSceneItems(request);
@@ -188,7 +191,7 @@ QImage renderToImage(SnowRuntime runtime, const QRectF& virtualSelectionRect,
         return {};
     }
 
-    QImage output(outputSize, QImage::Format_ARGB32_Premultiplied);
+    QImage output = snowCanvasAllocateImage(outputSize, QImage::Format_ARGB32_Premultiplied);
     output.fill(Qt::transparent);
     if (!projection.isValid()) {
         return output;
@@ -217,7 +220,7 @@ QImage renderToImage(SnowRuntime runtime, const QRectF& virtualSelectionRect,
     }
 
     const QSize sceneSize = outputSize;
-    QImage background(sceneSize, QImage::Format_ARGB32_Premultiplied);
+    QImage background = snowCanvasAllocateImage(sceneSize, QImage::Format_ARGB32_Premultiplied);
     background.fill(Qt::transparent);
     {
         QPainter backgroundPainter(&background);

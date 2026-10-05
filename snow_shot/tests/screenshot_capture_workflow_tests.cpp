@@ -324,11 +324,13 @@ void captureRestoresSelectionPreferencesAfterReset() {
         int radius = 24;
         int shadowWidth = 12;
         bool aspectRatioLocked = true;
+        auto aspectRatioPreset = ScreenshotSelectionAspectRatioPreset::Landscape16x9;
         auto regionType = ScreenshotRegionType::Polyline;
         context.restoreSelectionPreferences = [&]() {
             selection.setRegionType(regionType);
             static_cast<void>(selection.setCornerRadius(radius));
             static_cast<void>(selection.setShadowWidth(shadowWidth));
+            static_cast<void>(selection.setAspectRatioPreset(aspectRatioPreset, {}, 5.0));
             static_cast<void>(selection.setAspectRatioLockEnabled(aspectRatioLocked, 5.0));
         };
         ScreenshotCaptureWorkflow workflow(std::move(context));
@@ -342,18 +344,30 @@ void captureRestoresSelectionPreferencesAfterReset() {
                 "cold and prewarmed captures must restore effects after resetting the model");
         require(!selection.hasPixelSelection() && selection.aspectRatioLocked(),
                 "capture startup must restore the lock preference without restoring geometry");
+        require(selection.aspectRatioPreset() == aspectRatioPreset,
+                "cold and prewarmed captures restore the explicit ratio before selection creation");
+        selection.clearSelection();
+        selection.beginMoveDrag(QPointF(20, 30));
+        const QRectF firstMarquee = selection.selectionRectForDrag(
+            ScreenshotSelectionDragMode::Marquee, QPointF(180, 100), QRectF(0, 0, 2000, 1000), 5.0);
+        require(qFuzzyCompare(firstMarquee.height() / firstMarquee.width(), 9.0 / 16.0),
+                "the first marquee after capture reset uses the remembered ratio");
         workflow.cancelCapture();
         radius = 32;
         shadowWidth = 16;
+        aspectRatioPreset = ScreenshotSelectionAspectRatioPreset::Portrait3x4;
         regionType = ScreenshotRegionType::Curve;
         workflow.startCapture();
         require(selection.regionType() == regionType,
                 "captures after cancellation reload the latest region type");
         require(selection.cornerRadius() == 32 && selection.shadowWidth() == 16,
                 "captures after cancellation must reload the latest saved effects");
+        require(selection.aspectRatioPreset() == aspectRatioPreset,
+                "captures after cancellation reload the latest ratio preference");
         radius = 0;
         shadowWidth = 0;
         aspectRatioLocked = false;
+        aspectRatioPreset = ScreenshotSelectionAspectRatioPreset::Free;
         regionType = ScreenshotRegionType::Freehand;
         workflow.startCapture();
         require(selection.regionType() == regionType,
@@ -1203,21 +1217,21 @@ void initialCaptureSnapshotsScreenshotSettings() {
     ScreenshotCaptureWorkflowContext context{
         state, runtime, geometry, displays, interaction, selection, intelligentSelection, {}};
     context.restoreOriginalScreenColors = [&enabled]() { return enabled; };
-    context.captureCursor = [&captureCursor]() { return captureCursor; };
+    context.showCursor = [&captureCursor]() { return captureCursor; };
     ScreenshotCaptureWorkflow workflow(context);
     workflow.startCapture();
     require(!runtime.lastCaptureRequest.restoreOriginalScreenColors &&
-                !state.restoreOriginalScreenColors && !runtime.lastCaptureRequest.captureCursor &&
-                !state.captureCursor,
+                !state.restoreOriginalScreenColors && runtime.lastCaptureRequest.captureCursor &&
+                state.captureCursor && !displays.cursorVisible,
             "capture must propagate disabled screenshot settings");
     enabled = true;
     captureCursor = true;
-    require(!state.restoreOriginalScreenColors && !state.captureCursor,
+    require(!state.restoreOriginalScreenColors && state.captureCursor && !displays.cursorVisible,
             "active capture must retain its setting snapshot");
     workflow.startCapture();
     require(runtime.lastCaptureRequest.restoreOriginalScreenColors &&
                 state.restoreOriginalScreenColors && runtime.lastCaptureRequest.captureCursor &&
-                state.captureCursor,
+                state.captureCursor && displays.cursorVisible,
             "normal capture must honor the enabled cursor setting with smart selection");
     workflow.startCapture(ScreenshotCaptureWorkflow::StartMode::ExternalDrag);
     require(runtime.lastCaptureRequest.restoreOriginalScreenColors &&
@@ -1471,7 +1485,12 @@ void recapturePreservesEditingStateAndRollsBackFailures() {
     original.image = QImage(64, 48, QImage::Format_RGBA8888);
     original.image.fill(Qt::red);
     original.active = true;
+    original.cursorPatch = QImage(3, 4, QImage::Format_RGBA8888);
+    original.cursorPatch.fill(Qt::green);
+    original.cursorPixelRect = QRect(5, 6, 3, 4);
     displays.appendDisplay(original);
+    displays.cursorVisible = true;
+    displays.cursorAvailable = true;
     ScreenshotGeometryMapper geometry;
     geometry.rebuild(displays);
     ScreenshotInteractionState interaction;
@@ -1485,7 +1504,7 @@ void recapturePreservesEditingStateAndRollsBackFailures() {
     bool lastSucceeded = false;
     ScreenshotCaptureWorkflowContext context{state,       runtime,   geometry,    displays,
                                              interaction, selection, intelligent, {}};
-    context.captureCursor = [&captureCursor]() { return captureCursor; };
+    context.showCursor = [&captureCursor]() { return captureCursor; };
     context.recaptureCompleted = [&](bool succeeded, const QString&) {
         ++completions;
         lastSucceeded = succeeded;
@@ -1505,8 +1524,16 @@ void recapturePreservesEditingStateAndRollsBackFailures() {
     const ScreenshotCaptureMode modeBefore = interaction.mode();
     CapturedDisplayModel replacement = original;
     replacement.image.fill(Qt::blue);
-    runtime.deliverResult(
-        successfulRecaptureResult(runtime.lastCaptureRequest.requestId, replacement));
+    replacement.cursorPatch.fill(Qt::yellow);
+    replacement.cursorPixelRect.moveTopLeft(QPoint(7, 8));
+    auto cursorResult =
+        successfulRecaptureResult(runtime.lastCaptureRequest.requestId, replacement);
+    cursorResult.cursorAvailable = true;
+    runtime.deliverResult(cursorResult);
+    require(displays.cursorVisible && displays.cursorAvailable &&
+                displays.displayAt(0).cursorPatch == replacement.cursorPatch &&
+                displays.displayAt(0).cursorPixelRect == replacement.cursorPixelRect,
+            "recapture must replace cursor pixels while retaining session visibility");
     require(runtime.createColorPickerCalls == 0 && runtime.releaseColorPickerCalls == 0,
             "recapture must leave the existing session picker lifetime unchanged");
     require(completions == 1 && lastSucceeded && !workflow.recaptureInProgress() &&
@@ -1518,9 +1545,9 @@ void recapturePreservesEditingStateAndRollsBackFailures() {
             "successful recapture must preserve selection, interaction, and canvas state");
 
     captureCursor = false;
-    require(workflow.startRecapture() && !runtime.lastCaptureRequest.captureCursor &&
+    require(workflow.startRecapture() && runtime.lastCaptureRequest.captureCursor &&
                 runtime.lastCaptureRequest.excludedWindowIds.isEmpty(),
-            "each recapture must read the latest cursor setting");
+            "recapture must retain acquisition independently of the visibility default");
     ScreenshotCaptureResult failed;
     failed.requestId = runtime.lastCaptureRequest.requestId;
     failed.purpose = ScreenshotCapturePurpose::Recapture;
@@ -1972,7 +1999,45 @@ void silentCaptureSuppressesAllPresentationAndRestoresVisibleMode() {
             "normal capture after a silent session restores presentation");
 }
 
+void suspendedCaptureDoesNotStartAndRestoresAfterFailedHandoff() {
+    ScreenshotCaptureState state;
+    ScreenshotDisplaySession displays;
+    ScreenshotGeometryMapper geometry;
+    ScreenshotInteractionState interaction;
+    ScreenshotSelectionModel selection;
+    ScreenshotIntelligentSelectionModel intelligent;
+    CaptureRuntime runtime;
+    auto workflow =
+        makeWorkflow(state, displays, geometry, interaction, selection, intelligent, runtime);
+
+    workflow.setCaptureSuspended(true);
+    for (const auto mode : {ScreenshotCaptureWorkflow::StartMode::Normal,
+                            ScreenshotCaptureWorkflow::StartMode::ExternalDrag}) {
+        workflow.startCapture(mode);
+        require(workflow.captureSuspended() && !state.captureInProgress &&
+                    runtime.prepareAsyncCalls == 0 && runtime.captureAllAsyncCalls == 0 &&
+                    runtime.createColorPickerCalls == 0 && interaction.inactive(),
+                "queued capture during handoff must leave native acquisition and UI idle");
+    }
+
+    workflow.setCaptureSuspended(false);
+    workflow.startCapture();
+    require(!workflow.captureSuspended() && state.captureInProgress &&
+                runtime.captureAllAsyncCalls == 1,
+            "failed handoff must allow capture again");
+    workflow.cancelCapture();
+    state.sessionState = ScreenshotSessionState::Editing;
+    interaction.setMoveTool(true, false);
+    workflow.setCaptureSuspended(true);
+    require(!workflow.startRecapture() && runtime.captureAllAsyncCalls == 1,
+            "suspended recapture must not enter native acquisition");
+    workflow.setCaptureSuspended(false);
+    require(workflow.startRecapture() && runtime.captureAllAsyncCalls == 2,
+            "resuming capture must also restore recapture acquisition");
+}
+
 int main() {
+    suspendedCaptureDoesNotStartAndRestoresAfterFailedHandoff();
     captureCompletionReleasesHistoryBeforeExportsFinish();
     silentCaptureSuppressesAllPresentationAndRestoresVisibleMode();
     toolbarPresentationTracksSelectionDragLifetime();

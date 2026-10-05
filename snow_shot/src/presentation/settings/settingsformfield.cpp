@@ -14,6 +14,7 @@
 #include <QSignalBlocker>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QTimer>
 
 #include <algorithm>
 #include <type_traits>
@@ -36,6 +37,15 @@ struct SettingsFormField::Impl {
                     const auto handle = fields::select(metadata, {}, options);
                     field = handle.field;
                     editor = handle.editor;
+                    if (payload.binding == SettingsSelectBinding::TranslationService) {
+                        QTimer::singleShot(0, &q, [this, binding = payload.binding] {
+                            session.requestSelectOptions(binding);
+                        });
+                        QObject::connect(handle.editor, &adqt::widgets::AdSelect::popupOpening, &q,
+                                         [this, binding = payload.binding] {
+                                             session.requestSelectOptions(binding);
+                                         });
+                    }
                     if (payload.binding == SettingsSelectBinding::AppFont) {
                         field->setChoiceUpdater(
                             [this](const auto& choices) { updateFontModel(choices); });
@@ -73,6 +83,8 @@ struct SettingsFormField::Impl {
                         field = handle.field;
                         editor = handle.editor;
                     } else {
+                        // Keep drag previews local and apply only the completed adjustment.
+                        options.commitPolicy = fields::CommitPolicy::OnFinish;
                         const auto handle = fields::slider(metadata, numberOptions, options);
                         field = handle.field;
                         editor = handle.editor;
@@ -158,13 +170,25 @@ struct SettingsFormField::Impl {
                                                descriptor.kind == SettingsFieldKind::Slider
                                            ? QVariant(value.toInt())
                                            : value;
-                static_cast<void>(session.submitDraft(descriptor.id, draft));
+                if (const auto* file =
+                        std::get_if<SettingsFilePathDefinition>(&descriptor.definition->payload)) {
+                    static_cast<void>(session.applyFilePathValue(file->binding, draft.toString()));
+                } else {
+                    static_cast<void>(session.submitDraft(descriptor.id, draft));
+                }
                 sync();
             });
         QObject::connect(&session, &SettingsRuntimeSession::fieldChanged, &q,
                          [this](const QString& id, const SettingsFieldState& state) {
                              if (id == descriptor.id)
                                  sync(&state);
+                         });
+        QObject::connect(&session, &SettingsRuntimeSession::filePathStatusChanged, &q,
+                         [this](SettingsFilePathBinding binding) {
+                             const auto* file = std::get_if<SettingsFilePathDefinition>(
+                                 &descriptor.definition->payload);
+                             if (file != nullptr && file->binding == binding)
+                                 sync();
                          });
         QObject::connect(&session, &SettingsRuntimeSession::optionsChanged, &q,
                          [this](const QString& id, const SettingsOptions& optionsState) {
@@ -175,8 +199,10 @@ struct SettingsFormField::Impl {
                              syncChoices();
                              sync();
                          });
+        const auto initialOptions = session.options(descriptor.id);
+        optionsError = initialOptions.error;
+        optionsLoading = initialOptions.loading;
         retranslateUi();
-        sync();
     }
 
     void commitBrowsedPath(const QString& path) {
@@ -287,6 +313,24 @@ struct SettingsFormField::Impl {
         field->setFieldVisible(state.visible);
         const QString error = !state.error.isEmpty() ? state.error : optionsError;
         field->setFeedback(error.isEmpty() ? QStringList() : QStringList{error}, {}, state.busy);
+        if (const auto* file =
+                std::get_if<SettingsFilePathDefinition>(&descriptor.definition->payload)) {
+            const QString status = session.filePathStatus(file->binding);
+            const bool statusError = session.filePathStatusError(file->binding);
+            QString description;
+            if (!status.isEmpty()) {
+                description = descriptor.definition->description.translated();
+                if (!description.isEmpty())
+                    description += QLatin1Char('\n');
+                description += status;
+            }
+            field->setDescriptionOverride(description, statusError);
+            if (statusError)
+                field->item()->setValidateStatus(adqt::widgets::AdFormItem::ValidateStatus::Error);
+            qobject_cast<FilePathInput*>(editor)->lineEdit()->setStatus(
+                statusError || !error.isEmpty() ? adqt::widgets::AdLineEdit::Status::Error
+                                                : adqt::widgets::AdLineEdit::Status::None);
+        }
         const auto applyProperties = [&state](QWidget* target) {
             bool changed = false;
             const auto setProperty = [target, &changed](const char* name, const QVariant& value) {

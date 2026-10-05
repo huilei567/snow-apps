@@ -81,7 +81,79 @@ python scripts/publish-snow-shot-gitee-release.py --manifest artifacts/publish-T
 token when available for authenticated reads. Keep the local manifest and
 all referenced files until both public release pages and asset downloads are verified.
 
+Gitee retains the newest Snow Shot release. After a publication passes all attachment
+checks, the publisher deletes older published Snow Shot release entries and their
+attachments. SemVer ordering protects the current version and any newer version;
+drafts and unrelated releases are excluded. Source Git tags and GitHub releases are
+retained. Verification-only runs never delete releases.
+
+If an attachment upload is explicitly rejected for exceeding Gitee's repository
+attachment quota, the publisher first checks whether that attachment was added. If
+it is still missing, it removes older Gitee releases and retries only that upload
+once. This exception runs only after the new release entry and its existing bytes
+have passed validation; the main workflow has already published and verified GitHub.
+Ambiguous upload failures do not trigger deletion or automatic retries. Ambiguous
+release deletions are reconciled by reading the exact release id before proceeding.
+
 ## Release contract
+
+### Production Qt feature policy
+
+Windows production Qt 6.12.0 LTS keeps time-zone handling and native Windows zone
+mappings and daylight-saving rules, while omitting the bundled CLDR localized
+time-zone display-name tables. The audited source patch preserves the native
+registry's long names in the system language and supplies unambiguous UTC-offset
+fallbacks for short and offset names in every requested locale. Numeric timestamps,
+UTC storage, local conversions, and daylight-saving transitions retain their behavior.
+
+`scripts/qt-toolchain.json` is the version and source-archive SHA256 contract for
+CMake, Windows/macOS provisioning, and release CI. Both source builders verify
+the archive before extraction. `scripts/build-static-qt.ps1` applies the patch
+idempotently and installs it under the kit's source-license bundle. The build
+stamp fingerprints the feature policy and patch contents. Bootstrap and packaging
+verify the installed Qt version and feature exports as well as the stamp;
+packaging also checks the installed patch hashes. Rebuild into a distinct
+installation prefix when upgrading an older kit. All presets require Qt 6.12.0;
+Debug source kits include Qt Test and Concurrent for the widget tests and image
+viewer and use bundled codecs to match the Debug runtime. Windows bootstrap also
+discovers kits under `.tools/qt/<version>/`.
+
+For a Release development kit used by `windows-msvc-performance`, pass
+`-DevelopmentModules` to `scripts/build-static-qt.ps1`. It enables Test and
+Concurrent and can add them incrementally to an already validated production
+kit. Performance discovery requires these modules. They are separate static
+libraries and are not linked into the production Snow Shot executable.
+
+macOS continues using Cocoa time-zone names; Qt already excludes these CLDR
+tables on Apple platforms. Its static kit uses the same feature policy and
+validates both its build stamp and installed exports.
+
+The standalone `test-support/qt-timezone` fixture can be built against the exact
+production kit to verify timestamp round trips, named zones, daylight-saving
+boundaries, and name fallbacks without starting the application.
+
+### Production size policy
+
+Full and Mini Windows installers share `/SOLID lzma` compression with a 32 MiB
+dictionary. Their deterministic update and portable ZIP archives use .NET
+`CompressionLevel.SmallestSize`, preserving standard Deflate compatibility.
+
+`SNOW_APPS_ENABLE_RELEASE_SIZE_OPTIMIZATION` is enabled by the shipping Release
+presets and disabled in Debug, performance/benchmark, and fast presets. It
+generates the Ant icon subset from application sources, public headers, drawing
+code, and widget defaults under the build directory. Every theme of a referenced
+icon is retained; pack enumeration or registration triggers a complete-pack
+fallback for dynamic lookups. Changes to sources, headers, manifests, or SVGs
+regenerate the subset without altering the checked-in library or public API.
+
+Cold configuration, settings forms, import/export, and shell code use `/O1 /Os`
+on MSVC or `-Os` on Clang. Capture, recording, drawing, image processing, history
+thumbnails, clipboard decoding, and shortcut dispatch retain their speed policy.
+Optimized Release targets keep LTO; MSVC `/Gw` and `/Gy` allow `/OPT:REF` and
+`/OPT:ICF` to discard unused data/functions and fold identical code. macOS enables
+`-dead_strip` only for Release builds with the shipping size option enabled.
+The source and target policies are centralized in
+`cmake/SnowShotReleaseOptimization.cmake` for both editions.
 
 ### Snow Shot Mini paired releases
 
@@ -105,8 +177,9 @@ snow_shot`. Windows and ARM64 release packaging requires both editions.
 
 Windows Mini bundles only the trusted OCR asset manifest; manual text recognition
 downloads the local OCR payload on demand. It has no offline installer. macOS
-Mini supports Apple Silicon only and bundles its OCR worker, runtime, and default
-models in `snow-shot-mini-<version>-macos-arm64.dmg`. Mini hides its
+Mini supports Apple Silicon only and bundles its OCR worker and runtime in
+`snow-shot-mini-<version>-macos-arm64.dmg`. It bundles no model files; selected
+models download on demand into its verified application cache. Mini hides its
 text-recognition toolbar button by default on both platforms and disables
 automatic Pin to Screen recognition; users can enable manual text recognition
 in Mini settings.
@@ -389,8 +462,13 @@ winget upgrade --exact --id mg-chao.snow-shot --source winget
 winget uninstall --exact --id mg-chao.snow-shot --source winget
 ```
 
-Installation is machine-wide and requires elevation. Close Snow Shot before a silent
-upgrade or uninstall: installer exit code 10 maps to WinGet's `packageInUse` response.
+Installation is machine-wide and requires elevation. Newly built silent installers
+(`winget upgrade --silent` or the installer executable with `/S`) close the affected
+Snow Shot installation, install the update, and restart it on the interactive desktop
+after successful installation. Closing may interrupt tasks and discard unsaved screenshots
+or annotations. Fresh silent installations and upgrades of an already stopped app do not
+launch it. Interactive setup still asks before closing; close Snow Shot before a standalone
+silent uninstall. Installer exit code 10 maps to WinGet's `packageInUse` response.
 The existing in-app updater remains enabled and updates the uninstall registration.
 WinGet uses that registration to identify the installed version.
 
@@ -407,14 +485,17 @@ enable local manifests with `winget settings --enable LocalManifestFiles`, insta
 `winget install --manifest <manifest-directory> --silent`, and confirm detection with
 `winget list --exact --id mg-chao.snow-shot`. Install an older version first to exercise
 an upgrade, including a custom installation directory and a user-settings sentinel.
-Confirm the version changes, directory/settings survive, the app does not launch during
-silent installation, and an upgrade while the app is running refuses without killing it.
+Confirm the version changes, directory/settings survive, a fresh silent install does not
+launch the app, and an upgrade of a running app closes and restarts it after installing.
 Finally uninstall silently and verify owned files/registration are removed and user data
 is preserved. Fixture tests and manifest validation do not substitute for this VM check.
 
 The **Snow Shot WinGet verification** workflow automates this lifecycle on a disposable
 GitHub-hosted Windows runner. It runs installation checks for WinGet changes in pull
-requests; manual runs accept `tag` and `previous_tag`. Pushes to `codex/winget-*`
+requests; manual runs accept `tag`, `previous_tag`, and `running_app_behavior`. Choose
+`Restart` for releases containing the silent-upgrade restart change; the default `Refuse`
+keeps the immutable historical release fixtures valid. The underlying verification script
+accepts the same expectation with `-RunningAppBehavior Restart`. Pushes to `codex/winget-*`
 preparation branches run fixture and credential checks only, avoiding duplicate installs.
 Installation checks need no submission token and never open upstream PRs. Trusted
 preparation-branch pushes and manual runs also perform a read-only check of the

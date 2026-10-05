@@ -1,3 +1,5 @@
+#include "snow_draw_engine_qt/snow_canvas_image.h"
+#include "snow_shot/presentation/screenshotcursorimagesource.h"
 #include "snow_shot/presentation/screenshotsourceimagecomposer.h"
 
 #include "snow_shot/presentation/screenshotdisplaysession.h"
@@ -15,7 +17,7 @@ QImage composeScreenshotSourceSelection(const ScreenshotDisplaySession& displayS
     const auto spec = screenshotSelectionRenderSpec(displaySession, selection);
     if (!spec.isValid())
         return {};
-    QImage image(spec.pixelSize, QImage::Format_RGBA8888);
+    QImage image = snowCanvasAllocateImage(spec.pixelSize, QImage::Format_RGBA8888);
     if (image.isNull())
         return {};
     image.setColorSpace(QColorSpace::SRgb);
@@ -30,9 +32,12 @@ QImage composeScreenshotSourceSelection(const ScreenshotDisplaySession& displayS
         if (display.image.isNull() || !canvasRect.intersects(selectionRect)) {
             return;
         }
-        const QRectF targetRect = canvasRect.translated(-static_cast<qreal>(selection.left()),
-                                                        -static_cast<qreal>(selection.top()));
-        painter.drawImage(targetRect, display.image);
+        for (const auto& layer :
+             screenshotDisplayImageLayers(display, displaySession.cursorVisible)) {
+            const QRectF targetRect = layer.destinationCanvasRect.translated(
+                -static_cast<qreal>(selection.left()), -static_cast<qreal>(selection.top()));
+            painter.drawImage(targetRect, layer.image);
+        }
     });
     return image;
 }

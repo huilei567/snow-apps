@@ -12,7 +12,7 @@ endif()
 
 project(snow_apps VERSION 0.2.0 LANGUAGES CXX)
 
-set(SNOW_SHOT_VERSION "1.1.9")
+set(SNOW_SHOT_VERSION "1.2.2")
 if(NOT SNOW_SHOT_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)(-[0-9A-Za-z.-]+)?$")
     message(FATAL_ERROR "SNOW_SHOT_VERSION must be a semantic version such as 0.8.0-dev")
 endif()
@@ -39,6 +39,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ProjectWarnings)
 include(SnowWorkspace)
+include(SnowQt)
 include(RustStaticLibrary)
 
 option(SNOW_APPS_BUILD_ANT_DESIGN_QT "Build the Ant Design Qt libraries." ON)
@@ -103,6 +104,12 @@ set(SNOW_RUST_RELEASE_PROFILE "release" CACHE STRING
     "Cargo profile used for non-Debug Rust builds.")
 
 snow_workspace_configure_paths()
+# Resolve imported metadata before configuring codecs, CRT linkage, or creating
+# any workspace targets. Subprojects also use this contract when built alone.
+if(SNOW_APPS_BUILD_ANT_DESIGN_QT OR SNOW_APPS_BUILD_DRAW_ENGINE OR
+   SNOW_APPS_BUILD_IMAGE_VIEWER OR SNOW_APPS_BUILD_SNOW_SHOT)
+    snow_find_qt(COMPONENTS Core Gui GLOBAL)
+endif()
 snow_workspace_configure_options()
 
 if(SNOW_APPS_ENABLE_RELEASE_OPTIMIZATION)
@@ -168,6 +175,7 @@ if(SNOW_APPS_BUILD_SNOW_SHOT)
         FEATURES ${_snow_scrolling_perf_features}
         STRIP_MSVC_DIRECTIVES
     )
+    snow_add_rust_bundle_selector(snow_shot_rust_ffi_selector snow_shot_rust_ffi_bundle)
     foreach(_snow_rust_ffi_target IN ITEMS
             snow_capture_c
             snow_recording_c
@@ -178,7 +186,7 @@ if(SNOW_APPS_BUILD_SNOW_SHOT)
             snow_visual_region_detector_c)
         add_library("${_snow_rust_ffi_target}" INTERFACE)
         target_link_libraries("${_snow_rust_ffi_target}" INTERFACE
-            snow_shot_rust_ffi_bundle)
+            snow_shot_rust_ffi_selector)
     endforeach()
     unset(_snow_rust_ffi_target)
     target_include_directories(snow_recording_effects_c INTERFACE
@@ -219,6 +227,20 @@ if(SNOW_APPS_BUILD_SNOW_IMAGE)
 endif()
 
 if(SNOW_APPS_BUILD_ANT_DESIGN_QT)
+    # Shipping builds retain all themes of icons used by the app and its widgets.
+    # Development, benchmarks and other apps keep the public library's full pack.
+    if(SNOW_APPS_ENABLE_RELEASE_SIZE_OPTIMIZATION AND
+       SNOW_APPS_BUILD_SNOW_SHOT AND SNOW_APPS_PACKAGE_SNOW_SHOT AND
+       NOT SNOW_APPS_BUILD_TESTS AND NOT SNOW_APPS_BUILD_BENCHMARKS AND
+       NOT SNOW_APPS_BUILD_IMAGE_VIEWER)
+        set(ADQT_ICON_USAGE_ROOTS
+            "${CMAKE_CURRENT_SOURCE_DIR}/snow_shot/src"
+            "${CMAKE_CURRENT_SOURCE_DIR}/snow_shot/include"
+            "${CMAKE_CURRENT_SOURCE_DIR}/snow_draw_engine_qt/src"
+            "${CMAKE_CURRENT_SOURCE_DIR}/snow_draw_engine_qt/include")
+    else()
+        set(ADQT_ICON_USAGE_ROOTS "")
+    endif()
     add_subdirectory(ant_design_qt "${CMAKE_BINARY_DIR}/ant_design_qt")
 endif()
 
@@ -409,10 +431,6 @@ if(SNOW_APPS_PACKAGE_SNOW_SHOT AND NOT APPLE)
     set(CPACK_PACKAGE_FILE_NAME "snow-shot-${SNOW_SHOT_VERSION}-windows-x64")
     set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}")
     set(CPACK_PACKAGE_CHECKSUM "SHA256")
-    # LZMA gives the smallest installer while solid compression keeps repeated
-    # Qt/runtime data from being stored more than once.
-    set(CPACK_NSIS_COMPRESSOR "lzma")
-    set(CPACK_NSIS_COMPRESSOR_SOLID ON)
     set(CPACK_PACKAGE_DESCRIPTION_FILE
         "${CMAKE_CURRENT_SOURCE_DIR}/snow_shot/packaging/README.txt")
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/snow_shot/LICENSE")
@@ -451,6 +469,8 @@ if(SNOW_APPS_PACKAGE_SNOW_SHOT AND NOT APPLE)
     set(CPACK_NSIS_URL_INFO_ABOUT "${SNOW_SHOT_HOMEPAGE_URL}")
     set(CPACK_NSIS_CONTACT "${SNOW_SHOT_SUPPORT_EMAIL}")
     set(CPACK_VERBATIM_VARIABLES ON)
+    include(cmake/SnowShotPackageCompression.cmake)
+    snow_shot_apply_nsis_compression()
     include(cmake/SnowShotInstaller.cmake)
     include(CPack)
 endif()

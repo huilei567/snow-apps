@@ -1,9 +1,13 @@
+#include "snow_draw_engine_qt/snow_canvas_image.h"
 #include "snow_shot/platform/applicationqos.h"
 #include "snow_shot/presentation/screenshotclipboardcontent.h"
 #include "screenshotclipboardcontentsnapshot.h"
 
 #include "../../image/snowimageqtcodec.h"
 #include "../pinned/screenshotpintoperfinstrumentation.h"
+#ifdef Q_OS_MACOS
+#include "../../platform/macos/imageclipboard.h"
+#endif
 
 #include <QAbstractTextDocumentLayout>
 #include <QBuffer>
@@ -28,6 +32,7 @@
 #include <QUrl>
 #include <QVariant>
 #include <QScopeGuard>
+#include <QStringDecoder>
 
 #include <algorithm>
 #include <cmath>
@@ -58,6 +63,11 @@ constexpr qint64 kMaximumEncodedImageBytes = 256LL * 1024LL * 1024LL;
 constexpr qreal kFormattedTextPadding = 16.0;
 
 using AllocationCheck = ScreenshotClipboardContentReader::AllocationCheck;
+
+bool isTextFile(const QString& suffix) {
+    return suffix == QLatin1String("txt") || suffix == QLatin1String("html") ||
+           suffix == QLatin1String("htm");
+}
 
 qint64 snapshotBytes(const ScreenshotClipboardContentSnapshot& snapshot) {
     qint64 bytes =
@@ -105,27 +115,43 @@ class RestrictedTextDocument final : public QTextDocument {
         // Qt can perform I/O. The clipboard snapshot does not inject any
         // external resources, so an empty QVariant is the safe cache miss.
         if (scheme == QStringLiteral("data")) {
-            if (m_allocate && type == QTextDocument::ImageResource) {
+            if (type == QTextDocument::ImageResource) {
                 // Qt's default data-URL loader decodes before exposing dimensions.
                 // Inspect the immutable encoded bytes before admitting its raster.
+                if (!name.host().isEmpty())
+                    return {};
                 const auto data = name.toEncoded();
                 const auto comma = data.indexOf(',');
-                if (comma < 0 || data.size() > 2 * 1024 * 1024) {
-                    m_failed = true;
+                if (comma < 0 || (m_allocate && data.size() > 2 * 1024 * 1024)) {
+                    m_failed = static_cast<bool>(m_allocate);
                     return {};
                 }
-                auto encoded = data.left(comma).endsWith(";base64")
-                                   ? QByteArray::fromBase64(data.mid(comma + 1))
-                                   : QByteArray::fromPercentEncoding(data.mid(comma + 1));
+                // Match Qt's data-URL rules: metadata and payload can both be
+                // percent encoded, and the trailing base64 marker ignores case.
+                const auto metadata = QByteArray::fromPercentEncoding(data.left(comma)).trimmed();
+                auto encoded = QByteArray::fromPercentEncoding(data.mid(comma + 1));
+                if (metadata.toLower().endsWith(";base64")) {
+                    auto decoded = QByteArray::fromBase64Encoding(std::move(encoded));
+                    if (!decoded)
+                        return {};
+                    encoded = std::move(decoded.decoded);
+                }
                 QBuffer buffer(&encoded);
                 buffer.open(QIODevice::ReadOnly);
                 QImageReader reader(&buffer);
                 const auto size = reader.size();
-                if (!admitImage(size, m_retained + m_resourceBytes + encoded.size(), m_allocate)) {
+                if (m_allocate &&
+                    !admitImage(size, m_retained + m_resourceBytes + encoded.size(), m_allocate)) {
                     m_failed = true;
                     return {};
                 }
-                auto image = reader.read();
+                auto image = snow_shot::image_codec::readManagedImage(reader);
+                if (image.isNull())
+                    return m_allocate ? QVariant::fromValue(image)
+                                      : QTextDocument::loadResource(type, name);
+                // resource() does not cache a virtual loadResource() result.
+                // Share this owner across layout, painting and later consumers.
+                addResource(type, name, image);
                 m_resourceBytes += image.sizeInBytes();
                 return image;
             }
@@ -191,8 +217,16 @@ QImage normalizedImage(QImage image) {
         image.sizeInBytes() > kMaximumClipboardImageBytes) {
         return {};
     }
+    // The immutable clipboard snapshot already retains its QImage owner. Share
+    // those pixels instead of allocating a second raster while the provider or
+    // snapshot still owns the first. Decoded and rendered images retain their
+    // managed storage; foreign Qt owners keep their native allocation policy.
 #if !defined(Q_OS_MACOS)
-    image.setDevicePixelRatio(1.0);
+    if (image.devicePixelRatio() != 1.0) {
+        if (!snowCanvasDetachImage(image))
+            return {};
+        image.setDevicePixelRatio(1.0);
+    }
 #endif
     return image;
 }
@@ -310,7 +344,7 @@ renderTextDocument(std::shared_ptr<QTextDocument> document, QString plainText,
     if (restricted->allocationFailed() ||
         !admitImage(physicalSize, retained + restricted->resourceBytes(), allocate))
         return std::nullopt;
-    QImage image(physicalSize, QImage::Format_ARGB32_Premultiplied);
+    QImage image = snowCanvasAllocateImage(physicalSize, QImage::Format_ARGB32_Premultiplied);
     if (image.isNull()) {
         return std::nullopt;
     }
@@ -400,15 +434,17 @@ readEncodedImage(const QList<ScreenshotClipboardEncodedImage>& images,
 }
 
 std::optional<ScreenshotClipboardContent>
-readFileImage(const ScreenshotClipboardLocalImage& localImage,
-              const ScreenshotClipboardContentReader::CancellationCheck& cancelled,
-              const AllocationCheck& allocate, qint64 retained) {
+readFileContent(const ScreenshotClipboardLocalImage& localImage, qreal devicePixelRatio,
+                const QColor& baseColor,
+                const ScreenshotClipboardContentReader::CancellationCheck& cancelled,
+                const AllocationCheck& allocate, qint64 retained) {
     const auto format =
         std::find_if(std::begin(kFileImageFormats), std::end(kFileImageFormats),
                      [&localImage](const FileImageFormat& candidate) {
                          return localImage.suffix == QLatin1String(candidate.suffix);
                      });
-    if (format == std::end(kFileImageFormats) || cancellationRequested(cancelled)) {
+    const bool textFile = isTextFile(localImage.suffix);
+    if ((!textFile && format == std::end(kFileImageFormats)) || cancellationRequested(cancelled)) {
         return std::nullopt;
     }
 
@@ -416,7 +452,7 @@ readFileImage(const ScreenshotClipboardLocalImage& localImage,
     if (!before.exists() || !before.isFile() || !before.isReadable() ||
         before.size() != localImage.size ||
         before.lastModified().toUTC() != localImage.lastModifiedUtc || before.size() <= 0 ||
-        before.size() > kMaximumEncodedImageBytes) {
+        before.size() > (textFile ? 1024 * 1024 : kMaximumEncodedImageBytes)) {
         return std::nullopt;
     }
     if (allocate && !allocate(retained + before.size() + 1))
@@ -432,6 +468,26 @@ readFileImage(const ScreenshotClipboardLocalImage& localImage,
         after.lastModified().toUTC() != localImage.lastModifiedUtc ||
         cancellationRequested(cancelled)) {
         return std::nullopt;
+    }
+    if (textFile) {
+        if (allocate && !allocate(retained + encoded.size() * 3))
+            return std::nullopt;
+        const bool html = localImage.suffix != QLatin1String("txt");
+        const auto encoding = html ? QStringDecoder::encodingForHtml(encoded)
+                                   : QStringDecoder::encodingForData(encoded);
+        QStringDecoder decoder(encoding.value_or(QStringDecoder::Utf8));
+        ScreenshotClipboardContentSnapshot textSnapshot;
+        (html ? textSnapshot.html : textSnapshot.text) = decoder.decode(encoded);
+        if (decoder.hasError())
+            return std::nullopt;
+        textSnapshot.devicePixelRatio = devicePixelRatio;
+        textSnapshot.baseColor = baseColor;
+        const AllocationCheck textAllocate = allocate ? AllocationCheck([&](qint64 bytes) {
+            return allocate(retained + encoded.size() + bytes);
+        })
+                                                      : AllocationCheck{};
+        return ScreenshotClipboardContentReader::decode(std::move(textSnapshot), cancelled,
+                                                        textAllocate);
     }
     if (allocate && !admitImage(snow_shot::image_codec::inspectSize(encoded, format->format),
                                 retained + encoded.size(), allocate))
@@ -765,7 +821,7 @@ QImage decodeNativeDib(const ScreenshotClipboardNativeDib& native) {
 #else
     const bool useAvx2 = false;
 #endif
-    QImage image(native.size, QImage::Format_ARGB32_Premultiplied);
+    QImage image = snowCanvasAllocateImage(native.size, QImage::Format_ARGB32_Premultiplied);
     if (image.isNull())
         return {};
     const auto decodeRows = [&](int firstRow, int lastRow) {
@@ -840,6 +896,7 @@ QStringList ScreenshotClipboardContentReader::supportedFileExtensions() {
     for (const auto& format : kFileImageFormats) {
         extensions.append(QString::fromLatin1(format.suffix));
     }
+    extensions.append({QStringLiteral("txt"), QStringLiteral("html"), QStringLiteral("htm")});
     return extensions;
 }
 
@@ -867,12 +924,13 @@ ScreenshotClipboardContentReader::snapshotLocalFiles(const QStringList& paths,
         const QFileInfo info(QDir::cleanPath(path));
         const QString suffix = info.suffix().toLower();
         const bool supported =
+            isTextFile(suffix) ||
             std::any_of(std::begin(kFileImageFormats), std::end(kFileImageFormats),
                         [&suffix](const FileImageFormat& format) {
                             return suffix == QLatin1String(format.suffix);
                         });
         if (!supported || !info.isFile() || !info.isReadable() || info.size() <= 0 ||
-            info.size() > kMaximumEncodedImageBytes) {
+            info.size() > (isTextFile(suffix) ? 1024 * 1024 : kMaximumEncodedImageBytes)) {
             continue;
         }
         const QString absolute = info.absoluteFilePath();
@@ -901,6 +959,15 @@ snapshotClipboardOnce(QClipboard* clipboard, qreal devicePixelRatio, AllocationC
     if (clipboard == nullptr) {
         return std::nullopt;
     }
+#ifdef Q_OS_MACOS
+    // Our native TIFF is only another encoding of the same PNG. Independent
+    // foreign bitmaps must still be snapshotted in case encoded decoding fails.
+    // snapshot() checks the revision so replacement cannot invalidate this fact.
+    const bool bitmapIsDerivedFromPng =
+        snow_shot::platform::macos::imageClipboardBitmapIsDerivedFromPng();
+#else
+    constexpr bool bitmapIsDerivedFromPng = false;
+#endif
     const QColor baseColor = QGuiApplication::palette().color(QPalette::Base);
     bool rejected = false;
     const AllocationCheck checked = allocate ? AllocationCheck([&](qint64 bytes) {
@@ -963,7 +1030,13 @@ snapshotClipboardOnce(QClipboard* clipboard, qreal devicePixelRatio, AllocationC
         snapshot->devicePixelRatio = devicePixelRatio;
         snapshot->baseColor = baseColor;
     }
-    if (snapshot.has_value() && !snapshot->nativeDib.has_value()) {
+    const bool capturedCanonicalPng =
+        bitmapIsDerivedFromPng && snapshot &&
+        std::any_of(snapshot->encodedImages.cbegin(), snapshot->encodedImages.cend(),
+                    [](const ScreenshotClipboardEncodedImage& encoded) {
+                        return encoded.mimeType == QStringLiteral("image/png");
+                    });
+    if (snapshot.has_value() && !snapshot->nativeDib.has_value() && !capturedCanonicalPng) {
         // Providers that expose only QMimeData::imageData() remain supported.
         SNOW_SHOT_PIN_PERF_COUNTER("clipboard.native_dib_fallback", 1);
         const auto* mime = clipboard->mimeData();
@@ -983,6 +1056,10 @@ snapshotClipboardOnce(QClipboard* clipboard, qreal devicePixelRatio, AllocationC
 std::optional<ScreenshotClipboardContentSnapshot>
 ScreenshotClipboardContentReader::snapshot(QClipboard* clipboard, qreal devicePixelRatio,
                                            AllocationCheck allocate) {
+#ifdef Q_OS_MACOS
+    // A process that has never copied an image must also recognize native PNG.
+    snow_shot::platform::macos::initializeImageClipboardConverter();
+#endif
     ensureScreenshotClipboardPlacementMimeSupport();
     ensureScreenshotClipboardAppearanceMimeSupport();
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -1070,9 +1147,13 @@ ScreenshotClipboardContentReader::decode(ScreenshotClipboardContentSnapshot snap
     }
     if (snapshot.localImage.has_value()) {
         SNOW_SHOT_PIN_PERF_SCOPE("clipboard.decode_file_image");
-        if (auto result = readFileImage(*snapshot.localImage, cancelled, checked, retained);
+        if (auto result = readFileContent(*snapshot.localImage, snapshot.devicePixelRatio,
+                                          snapshot.baseColor, cancelled, checked, retained);
             result.has_value()) {
-            result->originalContent.localFilePath = snapshot.localImage->absolutePath;
+            // Text pins persist their source text, so restoring them does not
+            // depend on the external file or treat that file as an image.
+            if (!result->isFormattedText())
+                result->originalContent.localFilePath = snapshot.localImage->absolutePath;
             result->sourceIdentity = snapshot.localImage->sourceIdentity;
             return attachPlacement(std::move(result), &*snapshot.localImage);
         }
