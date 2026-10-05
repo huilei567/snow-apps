@@ -10,12 +10,14 @@ string(REGEX MATCH "^......." short_ref "${ref}")
 string(REGEX MATCH "[0-9]+\$" revision "${VERSION}")
 configure_file("${CURRENT_PORT_DIR}/version.diff.in" "${CURRENT_BUILDTREES_DIR}/src/version-${VERSION}.diff" @ONLY)
 
-vcpkg_from_gitlab(
-    GITLAB_URL https://code.videolan.org/
+# Snow Apps fork: clone over git instead of downloading the GitLab archive.
+# code.videolan.org now answers archive requests with an anti-bot challenge page,
+# so the tarball hash can never match; the git transport is unaffected and the
+# commit SHA below already pins the exact revision.
+vcpkg_from_git(
+    URL https://code.videolan.org/videolan/x264.git
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO videolan/x264
     REF "${ref}"
-    SHA512 707ff486677a1b5502d6d8faa588e7a03b0dee45491c5cba89341be4be23d3f2e48272c3b11d54cfc7be1b8bf4a3dfc3c3bb6d9643a6b5a2ed77539c85ecf294
     HEAD_REF master
     PATCHES
         "${CURRENT_BUILDTREES_DIR}/src/version-${VERSION}.diff"
