@@ -217,18 +217,104 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      # Safety net: keep the packaged installers as a workflow artifact so a later
+      # publication problem never costs another full rebuild.
+      - name: Preserve packaged installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: snow-shot-packages-${{ steps.package.outputs.tag }}
+          path: |
+            build/snow-shot-msvc-release/*.exe
+            build/snow-shot-msvc-release/*.exe.sha256
+            build/snow-shot-msvc-release/*.manifest.json
+            build/snow-shot-msvc-release/*-update.zip
+            build/snow-shot-msvc-release/*-update.zip.sha256
+            build/snow-shot-msvc-release/*-update.manifest.json
+            build/snow-shot-msvc-release/*-portable.zip
+            build/snow-shot-msvc-release/*-portable.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
       # Route C: CI publishes installers directly, without the signed update feed.
+      # Uses the GitHub REST API only: the runner image does not reliably ship the
+      # `gh` CLI, and a missing gh fails this step immediately after a full build.
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ steps.package.outputs.tag }}
         run: |
-          $assets = "${{ steps.package.outputs.assets }}" -split "`n" | Where-Object { $_ }
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $tag = $env:RELEASE_TAG
+          $repository = $env:GITHUB_REPOSITORY
+          $assets = @("${{ steps.package.outputs.assets }}" -split "`n" | Where-Object { $_ })
           $version = [regex]::Match((Get-Content -Raw CMakeLists.txt), 'set\(SNOW_SHOT_VERSION "([^"]+)"\)').Groups[1].Value
-          $releaseFlags = @()
-          if (($version -split '\+')[0].Contains('-')) { $releaseFlags += '--prerelease' }
-          gh release create $env:RELEASE_TAG @assets `
-            @releaseFlags `
-            --generate-notes `
-            --title "Snow Shot and Snow Shot Mini $env:RELEASE_TAG"
+
+          foreach ($asset in $assets) {
+            if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) {
+              throw "Release asset is missing: $asset"
+            }
+          }
+          Write-Host "Publishing $($assets.Count) assets to $tag on $repository"
+
+          $headers = @{
+            Authorization          = "Bearer $env:GH_TOKEN"
+            Accept                 = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+            'User-Agent'           = 'snow-shot-release'
+          }
+          $api = "https://api.github.com/repos/$repository/releases"
+
+          function Get-ReleaseForTag {
+            param([string]$Name)
+            try { return Invoke-RestMethod -Uri "$api/tags/$Name" -Headers $headers -TimeoutSec 60 }
+            catch { if ($_.Exception.Response.StatusCode.value__ -eq 404) { return $null }; throw }
+          }
+
+          $release = Get-ReleaseForTag -Name $tag
+          if ($release) {
+            Write-Host "Release $tag already exists; uploading assets to it."
+          } else {
+            $latestTag = $null
+            try {
+              $all = Invoke-RestMethod -Uri "${api}?per_page=100" -Headers $headers -TimeoutSec 60
+              $latestTag = @($all | Where-Object { -not $_.draft -and $_.tag_name -ne $tag } |
+                Sort-Object { [datetime]$_.published_at } -Descending |
+                Select-Object -First 1).tag_name
+            } catch { Write-Host "Could not resolve the previous release: $($_.Exception.Message)" }
+
+            $body = @{
+              tag_name         = $tag
+              name             = "Snow Shot and Snow Shot Mini $tag"
+              generate_release_notes = $true
+            }
+            if ($latestTag) { $body.previous_tag_name = $latestTag }
+            if (($version -split '\+')[0].Contains('-')) { $body.prerelease = $true }
+
+            $release = Invoke-RestMethod -Method Post -Uri $api -Headers $headers `
+              -ContentType 'application/json' -Body ($body | ConvertTo-Json -Depth 5) -TimeoutSec 120
+            Write-Host "Created release $($release.tag_name) (id $($release.id))."
+          }
+
+          $uploadUrl = "$api/$($release.id)/assets"
+          foreach ($asset in $assets) {
+            $name = [System.IO.Path]::GetFileName($asset)
+            $encoded = [uri]::EscapeDataString($name)
+            try {
+              Invoke-RestMethod -Method Delete -Uri "$uploadUrl/$encoded" -Headers $headers -TimeoutSec 60 | Out-Null
+              Write-Host "Removed the existing asset $name."
+            } catch { }
+            $bytes = [System.IO.File]::ReadAllBytes($asset)
+            Invoke-RestMethod -Method Post -Uri "${uploadUrl}?name=$encoded" -Headers $headers `
+              -ContentType 'application/octet-stream' -Body $bytes -TimeoutSec 900 | Out-Null
+            Write-Host "Uploaded $name ($($bytes.Length) bytes)."
+          }
+
+          $check = Invoke-RestMethod -Uri "$api/tags/$tag" -Headers $headers -TimeoutSec 60
+          Write-Host "Published tag=$($check.tag_name) draft=$($check.draft) assets=$(@($check.assets).Count)"
+          if ($check.draft) { throw "Release $tag is still a draft." }
+          if (@($check.assets).Count -lt $assets.Count) {
+            throw "Release $tag has $(@($check.assets).Count) assets but $($assets.Count) were expected."
+          }
