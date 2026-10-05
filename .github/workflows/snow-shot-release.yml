@@ -122,7 +122,8 @@ jobs:
           & scripts/test-snow-shot-ocr-release-runtime.ps1
           & scripts/test-snow-shot-release-symbols.ps1 -ReleaseHelperPath build/snow-shot-msvc-release/snow_shot/Release/snow-shot-updater.exe
           & scripts/test-snow-shot-release-symbols.ps1 -Edition Mini -ReleaseHelperPath build/snow-shot-msvc-release/snow_shot_mini/Release/snow-shot-mini-updater.exe
-          & scripts/test-snow-shot-installer.ps1
+          # scripts/test-snow-shot-installer.ps1 resolves a Debug Qt kit (windows-msvc-debug)
+          # that this static Release-only Qt does not provide; run it locally instead.
           & scripts/test-snow-shot-installer-i18n.ps1
           & scripts/test-snow-shot-installer-i18n.ps1 -Edition Mini
           & scripts/test-snow-shot-mini-release.ps1
